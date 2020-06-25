@@ -59,8 +59,13 @@ where
       debug!("Not sending activity to {} (invalid or blacklisted)", t);
       continue;
     }
-    let mut request = attohttpc::post(t).header("Host", to_url.domain().unwrap());
+    let mut domain: String = to_url.domain().unwrap().into();
+    if let Some(port) = to_url.port() {
+      domain.push_str(&format!(":{}", port));
+    }
+    let mut request = attohttpc::post(t).header("Host", domain);
     let signature = sign(&mut request, actor)?;
+
     let res = request
       .header("Signature", signature)
       .header("Content-Type", "application/json")
