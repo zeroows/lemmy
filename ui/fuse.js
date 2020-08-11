@@ -5,11 +5,14 @@ const {
   CSSPlugin,
   WebIndexPlugin,
   QuantumPlugin,
+  BannerPlugin,
 } = require('fuse-box');
 const transformInferno = require('ts-transform-inferno').default;
 const transformClasscat = require('ts-transform-classcat').default;
 let fuse, app;
 let isProduction = false;
+let libreJsLicense =
+  '// @license magnet:?xt=urn:btih:0b31508aeb0634b347b8270c7bee4d411b5d4109&dn=agpl-3.0.txt GNU Affero General Public License, version 3';
 
 Sparky.task('config', _ => {
   fuse = new FuseBox({
@@ -39,6 +42,7 @@ Sparky.task('config', _ => {
           treeshake: true,
           uglify: true,
         }),
+      BannerPlugin(libreJsLicense),
     ],
   });
   app = fuse.bundle('app').instructions('>index.tsx');
