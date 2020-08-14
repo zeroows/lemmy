@@ -19,7 +19,7 @@ where
   retry_custom(|| async { Ok((f)().await) }).await
 }
 
-pub async fn retry_custom<F, Fut, T>(f: F) -> Result<T, LemmyError>
+async fn retry_custom<F, Fut, T>(f: F) -> Result<T, LemmyError>
 where
   F: Fn() -> Fut,
   Fut: Future<Output = Result<Result<T, actix_web::client::SendRequestError>, LemmyError>>,

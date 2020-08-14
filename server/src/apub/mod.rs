@@ -1,3 +1,4 @@
+pub mod activity_sender;
 pub mod activities;
 pub mod comment;
 pub mod community;

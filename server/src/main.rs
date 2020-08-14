@@ -20,6 +20,7 @@ use diesel::{
 };
 use lemmy_db::get_database_url_from_env;
 use lemmy_server::{
+  apub::activity_sender::ActivitySender,
   blocking,
   code_migrations::run_advanced_migrations,
   rate_limit::{rate_limiter::RateLimiter, RateLimit},
@@ -76,9 +77,20 @@ async fn main() -> Result<(), LemmyError> {
 
   // Create Http server with websocket support
   HttpServer::new(move || {
-    let chat_server =
-      ChatServer::startup(pool.clone(), rate_limiter.clone(), Client::default()).start();
-    let context = LemmyContext::create(pool.clone(), chat_server, Client::default());
+    let activity_sender = ActivitySender::startup(Client::default()).start();
+    let chat_server = ChatServer::startup(
+      pool.clone(),
+      rate_limiter.clone(),
+      Client::default(),
+      activity_sender.clone(),
+    )
+    .start();
+    let context = LemmyContext::create(
+      pool.clone(),
+      chat_server,
+      Client::default(),
+      activity_sender,
+    );
     let settings = Settings::get();
     let rate_limiter = rate_limiter.clone();
     App::new()

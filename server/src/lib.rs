@@ -33,6 +33,8 @@ use crate::{
   request::{retry, RecvError},
   websocket::server::ChatServer,
 };
+
+use crate::apub::activity_sender::ActivitySender;
 use actix::Addr;
 use actix_web::{client::Client, dev::ConnectionInfo};
 use anyhow::anyhow;
@@ -75,14 +77,21 @@ pub struct LemmyContext {
   pub pool: DbPool,
   pub chat_server: Addr<ChatServer>,
   pub client: Client,
+  pub activity_sender: Addr<ActivitySender>,
 }
 
 impl LemmyContext {
-  pub fn create(pool: DbPool, chat_server: Addr<ChatServer>, client: Client) -> LemmyContext {
+  pub fn create(
+    pool: DbPool,
+    chat_server: Addr<ChatServer>,
+    client: Client,
+    activity_sender: Addr<ActivitySender>,
+  ) -> LemmyContext {
     LemmyContext {
       pool,
       chat_server,
       client,
+      activity_sender,
     }
   }
   pub fn pool(&self) -> &DbPool {
@@ -94,6 +103,9 @@ impl LemmyContext {
   pub fn client(&self) -> &Client {
     &self.client
   }
+  pub fn activity_sender(&self) -> &Addr<ActivitySender> {
+    &self.activity_sender
+  }
 }
 
 impl Clone for LemmyContext {
@@ -102,6 +114,7 @@ impl Clone for LemmyContext {
       pool: self.pool.clone(),
       chat_server: self.chat_server.clone(),
       client: self.client.clone(),
+      activity_sender: self.activity_sender.clone(),
     }
   }
 }

@@ -5,6 +5,7 @@
 use super::*;
 use crate::{
   api::{comment::*, community::*, post::*, site::*, user::*, *},
+  apub::activity_sender::ActivitySender,
   rate_limit::RateLimit,
   websocket::UserOperation,
   CommunityId,
@@ -181,6 +182,8 @@ pub struct ChatServer {
 
   /// An HTTP Client
   client: Client,
+
+  activity_sender: Addr<ActivitySender>,
 }
 
 impl ChatServer {
@@ -188,6 +191,7 @@ impl ChatServer {
     pool: Pool<ConnectionManager<PgConnection>>,
     rate_limiter: RateLimit,
     client: Client,
+    activity_sender: Addr<ActivitySender>,
   ) -> ChatServer {
     ChatServer {
       sessions: HashMap::new(),
@@ -199,6 +203,7 @@ impl ChatServer {
       rate_limiter,
       captchas: Vec::new(),
       client,
+      activity_sender,
     }
   }
 
@@ -455,6 +460,7 @@ impl ChatServer {
     };
 
     let client = self.client.clone();
+    let activity_sender = self.activity_sender.clone();
     async move {
       let msg = msg;
       let json: Value = serde_json::from_str(&msg.msg)?;
@@ -469,6 +475,7 @@ impl ChatServer {
         pool,
         chat_server: addr,
         client,
+        activity_sender,
       };
       let args = Args {
         context: &context,

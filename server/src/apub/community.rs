@@ -1,7 +1,8 @@
 use crate::{
   api::{check_slurs, check_slurs_opt},
   apub::{
-    activities::{generate_activity_id, send_activity},
+    activities::generate_activity_id,
+    activity_sender::{SendCommunityActivity, SendUserActivity},
     check_actor_domain,
     create_apub_response,
     create_apub_tombstone_response,
@@ -155,7 +156,12 @@ impl ActorType for Community {
 
     insert_activity(self.creator_id, accept.clone(), true, context.pool()).await?;
 
-    send_activity(context.client(), &accept.into_any_base()?, self, vec![to]).await?;
+    let message = SendCommunityActivity {
+      activity: accept.into_any_base()?,
+      actor: self.to_owned(),
+      to: vec![to],
+    };
+    context.activity_sender().send(message).await??;
     Ok(())
   }
 
@@ -176,7 +182,12 @@ impl ActorType for Community {
     // Note: For an accept, since it was automatic, no one pushed a button,
     // the community was the actor.
     // But for delete, the creator is the actor, and does the signing
-    send_activity(context.client(), &delete.into_any_base()?, creator, inboxes).await?;
+    let message = SendUserActivity {
+      activity: delete.into_any_base()?,
+      actor: creator.to_owned(),
+      to: inboxes,
+    };
+    context.activity_sender().send(message).await??;
     Ok(())
   }
 
@@ -208,7 +219,12 @@ impl ActorType for Community {
     // Note: For an accept, since it was automatic, no one pushed a button,
     // the community was the actor.
     // But for delete, the creator is the actor, and does the signing
-    send_activity(context.client(), &undo.into_any_base()?, creator, inboxes).await?;
+    let message = SendUserActivity {
+      activity: undo.into_any_base()?,
+      actor: creator.to_owned(),
+      to: inboxes,
+    };
+    context.activity_sender().send(message).await??;
     Ok(())
   }
 
@@ -229,7 +245,12 @@ impl ActorType for Community {
     // Note: For an accept, since it was automatic, no one pushed a button,
     // the community was the actor.
     // But for delete, the creator is the actor, and does the signing
-    send_activity(context.client(), &remove.into_any_base()?, mod_, inboxes).await?;
+    let message = SendUserActivity {
+      activity: remove.into_any_base()?,
+      actor: mod_.to_owned(),
+      to: inboxes,
+    };
+    context.activity_sender().send(message).await??;
     Ok(())
   }
 
@@ -258,7 +279,12 @@ impl ActorType for Community {
     // Note: For an accept, since it was automatic, no one pushed a button,
     // the community was the actor.
     // But for remove , the creator is the actor, and does the signing
-    send_activity(context.client(), &undo.into_any_base()?, mod_, inboxes).await?;
+    let message = SendUserActivity {
+      activity: undo.into_any_base()?,
+      actor: mod_.to_owned(),
+      to: inboxes,
+    };
+    context.activity_sender().send(message).await??;
     Ok(())
   }
 
@@ -511,7 +537,12 @@ pub async fn do_announce(
   let community_shared_inbox = community.get_shared_inbox_url()?;
   to.retain(|x| x != &community_shared_inbox);
 
-  send_activity(context.client(), &announce.into_any_base()?, community, to).await?;
+  let message = SendCommunityActivity {
+    activity: announce.into_any_base()?,
+    actor: community.to_owned(),
+    to,
+  };
+  context.activity_sender().send(message).await??;
 
   Ok(())
 }
