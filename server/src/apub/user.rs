@@ -2,7 +2,7 @@ use crate::{
   api::{check_slurs, check_slurs_opt},
   apub::{
     activities::generate_activity_id,
-    activity_sender::SendUserActivity,
+    activity_sender::send_activity,
     check_actor_domain,
     create_apub_response,
     fetcher::get_or_fetch_and_upsert_actor,
@@ -128,12 +128,7 @@ impl ActorType for User_ {
 
     insert_activity(self.id, follow.clone(), true, context.pool()).await?;
 
-    let message = SendUserActivity {
-      activity: follow.into_any_base()?,
-      actor: self.to_owned(),
-      to: vec![to],
-    };
-    context.activity_sender().do_send(message);
+    send_activity(context.activity_sender(), follow, self, vec![to])?;
     Ok(())
   }
 
@@ -158,12 +153,7 @@ impl ActorType for User_ {
 
     insert_activity(self.id, undo.clone(), true, context.pool()).await?;
 
-    let message = SendUserActivity {
-      activity: undo.into_any_base()?,
-      actor: self.to_owned(),
-      to: vec![to],
-    };
-    context.activity_sender().do_send(message);
+    send_activity(context.activity_sender(), undo, self, vec![to])?;
     Ok(())
   }
 

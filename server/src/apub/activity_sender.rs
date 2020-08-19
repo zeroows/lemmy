@@ -2,29 +2,59 @@ use crate::{
   apub::{check_is_apub_id_valid, extensions::signatures::sign, ActorType},
   LemmyError,
 };
-use activitystreams::base::AnyBase;
+use activitystreams::{
+  base::{Extends, ExtendsExt},
+  object::AsObject,
+};
 use actix::prelude::*;
+use anyhow::Context;
 use awc::Client;
-use lemmy_db::{community::Community, user::User_};
-use lemmy_utils::settings::Settings;
-use log::debug;
+use lemmy_utils::{location_info, settings::Settings};
+use log::{debug, warn};
+use serde::Serialize;
 use url::Url;
 
-// We cant use ActorType here, because it doesnt implement Sized
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct SendUserActivity {
-  pub activity: AnyBase,
-  pub actor: User_,
-  pub to: Vec<Url>,
+pub fn send_activity<T, Kind>(
+  activity_sender: &Addr<ActivitySender>,
+  activity: T,
+  actor: &dyn ActorType,
+  to: Vec<Url>,
+) -> Result<(), LemmyError>
+where
+  T: AsObject<Kind>,
+  T: Extends<Kind>,
+  Kind: Serialize,
+  <T as Extends<Kind>>::Error: From<serde_json::Error> + Send + Sync + 'static,
+{
+  if !Settings::get().federation.enabled {
+    return Ok(());
+  }
+
+  let activity = activity.into_any_base()?;
+  let serialised_activity = serde_json::to_string(&activity)?;
+
+  for to_url in &to {
+    check_is_apub_id_valid(&to_url)?;
+  }
+
+  let message = SendActivity {
+    activity: serialised_activity,
+    to,
+    actor_id: actor.actor_id()?,
+    private_key: actor.private_key().context(location_info!())?,
+  };
+  activity_sender.do_send(message);
+
+  Ok(())
 }
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct SendCommunityActivity {
-  pub activity: AnyBase,
-  pub actor: Community,
-  pub to: Vec<Url>,
+struct SendActivity {
+  activity: String,
+  to: Vec<Url>,
+  actor_id: Url,
+  private_key: String,
 }
 
 pub struct ActivitySender {
@@ -38,51 +68,55 @@ impl ActivitySender {
 }
 
 impl Actor for ActivitySender {
-  type Context = Context<Self>;
+  type Context = actix::Context<Self>;
 }
 
-impl Handler<SendUserActivity> for ActivitySender {
+impl Handler<SendActivity> for ActivitySender {
   type Result = ();
 
-  fn handle(&mut self, msg: SendUserActivity, _ctx: &mut Context<Self>) -> Self::Result {
-    send_activity(msg.activity, &msg.actor, msg.to, &self.client);
-  }
-}
+  fn handle(&mut self, msg: SendActivity, _ctx: &mut actix::Context<Self>) -> Self::Result {
+    debug!(
+      "Sending activitypub activity {} to {:?}",
+      &msg.activity, &msg.to
+    );
 
-impl Handler<SendCommunityActivity> for ActivitySender {
-  type Result = ();
-
-  fn handle(&mut self, msg: SendCommunityActivity, _ctx: &mut Context<Self>) -> Self::Result {
-    send_activity(msg.activity, &msg.actor, msg.to, &self.client);
-  }
-}
-
-fn send_activity(activity: AnyBase, actor: &dyn ActorType, to: Vec<Url>, client: &Client) {
-  if !Settings::get().federation.enabled {
-    return;
-  }
-
-  let serialised_activity = serde_json::to_string(&activity).unwrap();
-  debug!(
-    "Sending activitypub activity {} to {:?}",
-    &serialised_activity, &to
-  );
-
-  for to_url in &to {
-    check_is_apub_id_valid(&to_url).unwrap();
-
-    let request = client
-      .post(to_url.as_str())
-      .header("Content-Type", "application/json");
-
-    let serialised_activity = serialised_activity.clone();
     Box::pin(async move {
-      // TODO: need to remove the unwrap, but ? causes compile errors
-      // TODO: if the sending fails, it should retry with exponential backoff
-      let signed = sign(request, actor, serialised_activity).await.unwrap();
-      let res = signed.send().await;
-      debug!("Result for activity send: {:?}", res);
-      Ok::<(), LemmyError>(())
+      for to_url in &msg.to {
+        let request = self
+          .client
+          .post(to_url.as_str())
+          .header("Content-Type", "application/json");
+
+        let signed = sign(
+          request,
+          msg.activity.clone(),
+          &msg.actor_id,
+          msg.private_key.to_owned(),
+        )
+        .await;
+
+        let signed = match signed {
+          Ok(s) => s,
+          Err(e) => {
+            warn!(
+              "Failed to sign activity {} from {}: {}",
+              &msg.activity, &msg.actor_id, e
+            );
+            return;
+          }
+        };
+
+        // TODO: if the sending fails, it should retry with exponential backoff
+        match signed.send().await {
+          Ok(_) => {}
+          Err(e) => {
+            warn!(
+              "Failed to send activity {} to {}: {}",
+              &msg.activity, &to_url, e
+            );
+          }
+        }
+      }
     });
   }
 }

@@ -1,7 +1,7 @@
 use crate::{
   apub::{
     activities::generate_activity_id,
-    activity_sender::SendUserActivity,
+    activity_sender::send_activity,
     check_actor_domain,
     check_is_apub_id_valid,
     create_tombstone,
@@ -135,12 +135,7 @@ impl ApubObjectType for PrivateMessage {
 
     insert_activity(creator.id, create.clone(), true, context.pool()).await?;
 
-    let message = SendUserActivity {
-      activity: create.into_any_base()?,
-      actor: creator.to_owned(),
-      to: vec![to],
-    };
-    context.activity_sender().do_send(message);
+    send_activity(context.activity_sender(), create, creator, vec![to])?;
     Ok(())
   }
 
@@ -160,12 +155,7 @@ impl ApubObjectType for PrivateMessage {
 
     insert_activity(creator.id, update.clone(), true, context.pool()).await?;
 
-    let message = SendUserActivity {
-      activity: update.into_any_base()?,
-      actor: creator.to_owned(),
-      to: vec![to],
-    };
-    context.activity_sender().do_send(message);
+    send_activity(context.activity_sender(), update, creator, vec![to])?;
     Ok(())
   }
 
@@ -184,12 +174,7 @@ impl ApubObjectType for PrivateMessage {
 
     insert_activity(creator.id, delete.clone(), true, context.pool()).await?;
 
-    let message = SendUserActivity {
-      activity: delete.into_any_base()?,
-      actor: creator.to_owned(),
-      to: vec![to],
-    };
-    context.activity_sender().do_send(message);
+    send_activity(context.activity_sender(), delete, creator, vec![to])?;
     Ok(())
   }
 
@@ -219,12 +204,7 @@ impl ApubObjectType for PrivateMessage {
 
     insert_activity(creator.id, undo.clone(), true, context.pool()).await?;
 
-    let message = SendUserActivity {
-      activity: undo.into_any_base()?,
-      actor: creator.to_owned(),
-      to: vec![to],
-    };
-    context.activity_sender().do_send(message);
+    send_activity(context.activity_sender(), undo, creator, vec![to])?;
     Ok(())
   }
 

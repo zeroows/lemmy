@@ -1,5 +1,5 @@
-pub mod activity_sender;
 pub mod activities;
+pub mod activity_sender;
 pub mod comment;
 pub mod community;
 pub mod extensions;
