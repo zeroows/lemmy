@@ -27,7 +27,7 @@ pub async fn send_activity_to_community(
       actor: creator.to_owned(),
       to,
     };
-    context.activity_sender().send(message).await??;
+    context.activity_sender().do_send(message);
   }
 
   Ok(())

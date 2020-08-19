@@ -12,7 +12,7 @@ use url::Url;
 
 // We cant use ActorType here, because it doesnt implement Sized
 #[derive(Message)]
-#[rtype(result = "Result<(), LemmyError>")]
+#[rtype(result = "()")]
 pub struct SendUserActivity {
   pub activity: AnyBase,
   pub actor: User_,
@@ -20,7 +20,7 @@ pub struct SendUserActivity {
 }
 
 #[derive(Message)]
-#[rtype(result = "Result<(), LemmyError>")]
+#[rtype(result = "()")]
 pub struct SendCommunityActivity {
   pub activity: AnyBase,
   pub actor: Community,
@@ -42,39 +42,34 @@ impl Actor for ActivitySender {
 }
 
 impl Handler<SendUserActivity> for ActivitySender {
-  type Result = Result<(), LemmyError>;
+  type Result = ();
 
   fn handle(&mut self, msg: SendUserActivity, _ctx: &mut Context<Self>) -> Self::Result {
-    send_activity(msg.activity, &msg.actor, msg.to, &self.client)
+    send_activity(msg.activity, &msg.actor, msg.to, &self.client);
   }
 }
 
 impl Handler<SendCommunityActivity> for ActivitySender {
-  type Result = Result<(), LemmyError>;
+  type Result = ();
 
   fn handle(&mut self, msg: SendCommunityActivity, _ctx: &mut Context<Self>) -> Self::Result {
-    send_activity(msg.activity, &msg.actor, msg.to, &self.client)
+    send_activity(msg.activity, &msg.actor, msg.to, &self.client);
   }
 }
 
-fn send_activity(
-  activity: AnyBase,
-  actor: &dyn ActorType,
-  to: Vec<Url>,
-  client: &Client,
-) -> Result<(), LemmyError> {
+fn send_activity(activity: AnyBase, actor: &dyn ActorType, to: Vec<Url>, client: &Client) {
   if !Settings::get().federation.enabled {
-    return Ok(());
+    return;
   }
 
-  let serialised_activity = serde_json::to_string(&activity)?;
+  let serialised_activity = serde_json::to_string(&activity).unwrap();
   debug!(
     "Sending activitypub activity {} to {:?}",
     &serialised_activity, &to
   );
 
   for to_url in &to {
-    check_is_apub_id_valid(&to_url)?;
+    check_is_apub_id_valid(&to_url).unwrap();
 
     let request = client
       .post(to_url.as_str())
@@ -90,6 +85,4 @@ fn send_activity(
       Ok::<(), LemmyError>(())
     });
   }
-
-  Ok(())
 }

@@ -161,7 +161,7 @@ impl ActorType for Community {
       actor: self.to_owned(),
       to: vec![to],
     };
-    context.activity_sender().send(message).await??;
+    context.activity_sender().do_send(message);
     Ok(())
   }
 
@@ -187,7 +187,7 @@ impl ActorType for Community {
       actor: creator.to_owned(),
       to: inboxes,
     };
-    context.activity_sender().send(message).await??;
+    context.activity_sender().do_send(message);
     Ok(())
   }
 
@@ -224,7 +224,7 @@ impl ActorType for Community {
       actor: creator.to_owned(),
       to: inboxes,
     };
-    context.activity_sender().send(message).await??;
+    context.activity_sender().do_send(message);
     Ok(())
   }
 
@@ -250,7 +250,7 @@ impl ActorType for Community {
       actor: mod_.to_owned(),
       to: inboxes,
     };
-    context.activity_sender().send(message).await??;
+    context.activity_sender().do_send(message);
     Ok(())
   }
 
@@ -284,7 +284,7 @@ impl ActorType for Community {
       actor: mod_.to_owned(),
       to: inboxes,
     };
-    context.activity_sender().send(message).await??;
+    context.activity_sender().do_send(message);
     Ok(())
   }
 
@@ -542,7 +542,7 @@ pub async fn do_announce(
     actor: community.to_owned(),
     to,
   };
-  context.activity_sender().send(message).await??;
+  context.activity_sender().do_send(message);
 
   Ok(())
 }

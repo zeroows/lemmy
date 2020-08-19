@@ -133,7 +133,7 @@ impl ActorType for User_ {
       actor: self.to_owned(),
       to: vec![to],
     };
-    context.activity_sender().send(message).await??;
+    context.activity_sender().do_send(message);
     Ok(())
   }
 
@@ -163,7 +163,7 @@ impl ActorType for User_ {
       actor: self.to_owned(),
       to: vec![to],
     };
-    context.activity_sender().send(message).await??;
+    context.activity_sender().do_send(message);
     Ok(())
   }
 
