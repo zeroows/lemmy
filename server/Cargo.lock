@@ -491,6 +491,56 @@ dependencies = [
 ]
 
 [[package]]
+name = "background-jobs"
+version = "0.8.0-alpha.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb38c4a5de33324650e9023829b0f4129eb5418b29f5dfe69a52100ff5bc50d7"
+dependencies = [
+ "background-jobs-actix",
+ "background-jobs-core",
+]
+
+[[package]]
+name = "background-jobs-actix"
+version = "0.8.0-alpha.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d012b9293806c777f806b537e04b5eec34ecd6eaf876c52792017695ce53262f"
+dependencies = [
+ "actix-rt",
+ "anyhow",
+ "async-trait",
+ "background-jobs-core",
+ "chrono",
+ "log",
+ "num_cpus",
+ "rand 0.7.3",
+ "serde 1.0.114",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "uuid 0.8.1",
+]
+
+[[package]]
+name = "background-jobs-core"
+version = "0.8.0-alpha.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd5efe91c019d7780d5a2fc2f92a15e1f95b84a761428e1d1972b7428634ebc7"
+dependencies = [
+ "actix-rt",
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "futures",
+ "log",
+ "serde 1.0.114",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "uuid 0.8.1",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1723,6 +1773,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "awc",
+ "background-jobs",
  "base64 0.12.3",
  "bcrypt",
  "captcha",

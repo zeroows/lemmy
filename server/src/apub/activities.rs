@@ -1,5 +1,5 @@
 use crate::{
-  apub::{activity_sender::send_activity, community::do_announce, insert_activity},
+  apub::{activity_queue::send_activity, community::do_announce, insert_activity},
   LemmyContext,
   LemmyError,
 };
@@ -32,7 +32,7 @@ where
   if community.local {
     do_announce(activity.into_any_base()?, &community, creator, context).await?;
   } else {
-    send_activity(context.activity_sender(), activity, creator, to)?;
+    send_activity(context.activity_queue(), activity, creator, to)?;
   }
 
   Ok(())

@@ -2,7 +2,7 @@ use crate::{
   api::{check_slurs, check_slurs_opt},
   apub::{
     activities::generate_activity_id,
-    activity_sender::send_activity,
+    activity_queue::send_activity,
     check_actor_domain,
     create_apub_response,
     create_apub_tombstone_response,
@@ -156,7 +156,7 @@ impl ActorType for Community {
 
     insert_activity(self.creator_id, accept.clone(), true, context.pool()).await?;
 
-    send_activity(context.activity_sender(), accept, self, vec![to])?;
+    send_activity(context.activity_queue(), accept, self, vec![to])?;
     Ok(())
   }
 
@@ -177,7 +177,7 @@ impl ActorType for Community {
     // Note: For an accept, since it was automatic, no one pushed a button,
     // the community was the actor.
     // But for delete, the creator is the actor, and does the signing
-    send_activity(context.activity_sender(), delete, creator, inboxes)?;
+    send_activity(context.activity_queue(), delete, creator, inboxes)?;
     Ok(())
   }
 
@@ -209,7 +209,7 @@ impl ActorType for Community {
     // Note: For an accept, since it was automatic, no one pushed a button,
     // the community was the actor.
     // But for delete, the creator is the actor, and does the signing
-    send_activity(context.activity_sender(), undo, creator, inboxes)?;
+    send_activity(context.activity_queue(), undo, creator, inboxes)?;
     Ok(())
   }
 
@@ -230,7 +230,7 @@ impl ActorType for Community {
     // Note: For an accept, since it was automatic, no one pushed a button,
     // the community was the actor.
     // But for delete, the creator is the actor, and does the signing
-    send_activity(context.activity_sender(), remove, mod_, inboxes)?;
+    send_activity(context.activity_queue(), remove, mod_, inboxes)?;
     Ok(())
   }
 
@@ -259,7 +259,7 @@ impl ActorType for Community {
     // Note: For an accept, since it was automatic, no one pushed a button,
     // the community was the actor.
     // But for remove , the creator is the actor, and does the signing
-    send_activity(context.activity_sender(), undo, mod_, inboxes)?;
+    send_activity(context.activity_queue(), undo, mod_, inboxes)?;
     Ok(())
   }
 
@@ -512,7 +512,7 @@ pub async fn do_announce(
   let community_shared_inbox = community.get_shared_inbox_url()?;
   to.retain(|x| x != &community_shared_inbox);
 
-  send_activity(context.activity_sender(), announce, community, to)?;
+  send_activity(context.activity_queue(), announce, community, to)?;
 
   Ok(())
 }

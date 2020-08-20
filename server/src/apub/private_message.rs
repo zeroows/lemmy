@@ -1,7 +1,7 @@
 use crate::{
   apub::{
     activities::generate_activity_id,
-    activity_sender::send_activity,
+    activity_queue::send_activity,
     check_actor_domain,
     check_is_apub_id_valid,
     create_tombstone,
@@ -135,7 +135,7 @@ impl ApubObjectType for PrivateMessage {
 
     insert_activity(creator.id, create.clone(), true, context.pool()).await?;
 
-    send_activity(context.activity_sender(), create, creator, vec![to])?;
+    send_activity(context.activity_queue(), create, creator, vec![to])?;
     Ok(())
   }
 
@@ -155,7 +155,7 @@ impl ApubObjectType for PrivateMessage {
 
     insert_activity(creator.id, update.clone(), true, context.pool()).await?;
 
-    send_activity(context.activity_sender(), update, creator, vec![to])?;
+    send_activity(context.activity_queue(), update, creator, vec![to])?;
     Ok(())
   }
 
@@ -174,7 +174,7 @@ impl ApubObjectType for PrivateMessage {
 
     insert_activity(creator.id, delete.clone(), true, context.pool()).await?;
 
-    send_activity(context.activity_sender(), delete, creator, vec![to])?;
+    send_activity(context.activity_queue(), delete, creator, vec![to])?;
     Ok(())
   }
 
@@ -204,7 +204,7 @@ impl ApubObjectType for PrivateMessage {
 
     insert_activity(creator.id, undo.clone(), true, context.pool()).await?;
 
-    send_activity(context.activity_sender(), undo, creator, vec![to])?;
+    send_activity(context.activity_queue(), undo, creator, vec![to])?;
     Ok(())
   }
 

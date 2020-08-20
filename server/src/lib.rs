@@ -34,7 +34,6 @@ use crate::{
   websocket::server::ChatServer,
 };
 
-use crate::apub::activity_sender::ActivitySender;
 use actix::Addr;
 use actix_web::{client::Client, dev::ConnectionInfo};
 use anyhow::anyhow;
@@ -43,6 +42,7 @@ use log::error;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 use std::process::Command;
+use background_jobs::QueueHandle;
 
 pub type DbPool = diesel::r2d2::Pool<diesel::r2d2::ConnectionManager<diesel::PgConnection>>;
 pub type ConnectionId = usize;
@@ -77,7 +77,7 @@ pub struct LemmyContext {
   pub pool: DbPool,
   pub chat_server: Addr<ChatServer>,
   pub client: Client,
-  pub activity_sender: Addr<ActivitySender>,
+  pub activity_queue: QueueHandle,
 }
 
 impl LemmyContext {
@@ -85,13 +85,13 @@ impl LemmyContext {
     pool: DbPool,
     chat_server: Addr<ChatServer>,
     client: Client,
-    activity_sender: Addr<ActivitySender>,
+    activity_queue: QueueHandle,
   ) -> LemmyContext {
     LemmyContext {
       pool,
       chat_server,
       client,
-      activity_sender,
+      activity_queue,
     }
   }
   pub fn pool(&self) -> &DbPool {
@@ -103,8 +103,8 @@ impl LemmyContext {
   pub fn client(&self) -> &Client {
     &self.client
   }
-  pub fn activity_sender(&self) -> &Addr<ActivitySender> {
-    &self.activity_sender
+  pub fn activity_queue(&self) -> &QueueHandle {
+    &self.activity_queue
   }
 }
 
@@ -114,7 +114,7 @@ impl Clone for LemmyContext {
       pool: self.pool.clone(),
       chat_server: self.chat_server.clone(),
       client: self.client.clone(),
-      activity_sender: self.activity_sender.clone(),
+      activity_queue: self.activity_queue.clone(),
     }
   }
 }
