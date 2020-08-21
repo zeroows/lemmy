@@ -20,6 +20,7 @@ use diesel::{
 };
 use lemmy_db::get_database_url_from_env;
 use lemmy_server::{
+  apub::activity_queue::create_activity_queue,
   blocking,
   code_migrations::run_advanced_migrations,
   rate_limit::{rate_limiter::RateLimiter, RateLimit},
@@ -31,7 +32,6 @@ use lemmy_server::{
 use lemmy_utils::{settings::Settings, CACHE_CONTROL_REGEX};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use lemmy_server::apub::activity_queue::create_activity_queue;
 
 lazy_static! {
   // static ref CACHE_CONTROL_VALUE: String = format!("public, max-age={}", 365 * 24 * 60 * 60);
@@ -85,12 +85,8 @@ async fn main() -> Result<(), LemmyError> {
       activity_queue.clone(),
     )
     .start();
-    let context = LemmyContext::create(
-      pool.clone(),
-      chat_server,
-      Client::default(),
-      activity_queue
-    );
+    let context =
+      LemmyContext::create(pool.clone(), chat_server, Client::default(), activity_queue);
     let settings = Settings::get();
     let rate_limiter = rate_limiter.clone();
     App::new()

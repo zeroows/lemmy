@@ -17,9 +17,9 @@ use crate::{
 };
 use actix_web::{client::Client, web};
 use anyhow::Context as acontext;
+use background_jobs::QueueHandle;
 use lemmy_db::naive_now;
 use lemmy_utils::location_info;
-use background_jobs::QueueHandle;
 
 /// Chat server sends this messages to session
 #[derive(Message)]

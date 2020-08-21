@@ -67,21 +67,18 @@ struct SendActivityTask {
 }
 
 impl ActixJob for SendActivityTask {
-  type State = ();
+  type State = MyState;
   type Future = Pin<Box<dyn Future<Output = Result<(), Error>>>>;
   const NAME: &'static str = "SendActivityTask";
 
   const MAX_RETRIES: MaxRetries = MaxRetries::Count(10);
   const BACKOFF: Backoff = Backoff::Exponential(2);
 
-  fn run(self, _: Self::State) -> Self::Future {
+  fn run(self, state: Self::State) -> Self::Future {
     Box::pin(async move {
       for to_url in &self.to {
-        // TODO: should pass this in somehow instead of creating a new client every time
-        //       i suppose this can be done through a state
-        let client = Client::default();
-
-        let request = client
+        let request = state
+          .client
           .post(to_url.as_str())
           .header("Content-Type", "application/json");
 
@@ -121,15 +118,16 @@ pub fn create_activity_queue() -> QueueHandle {
   let queue_handle = create_server(Storage::new());
 
   // Configure and start our workers
-  WorkerConfig::new(|| {})
-    .register::<SendActivityTask>()
-    .start(queue_handle.clone());
+  WorkerConfig::new(|| MyState {
+    client: Client::default(),
+  })
+  .register::<SendActivityTask>()
+  .start(queue_handle.clone());
 
-  // Queue our jobs
-  //queue_handle.queue::<MyProcessor>(MyJob::new(1, 2))?;
-  //queue_handle.queue::<MyProcessor>(MyJob::new(3, 4))?;
-  //queue_handle.queue::<MyProcessor>(MyJob::new(5, 6))?;
-
-  // Block on Actix
   queue_handle
+}
+
+#[derive(Clone)]
+struct MyState {
+  pub client: Client,
 }

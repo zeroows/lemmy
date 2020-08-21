@@ -37,12 +37,12 @@ use crate::{
 use actix::Addr;
 use actix_web::{client::Client, dev::ConnectionInfo};
 use anyhow::anyhow;
+use background_jobs::QueueHandle;
 use lemmy_utils::{get_apub_protocol_string, settings::Settings};
 use log::error;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 use std::process::Command;
-use background_jobs::QueueHandle;
 
 pub type DbPool = diesel::r2d2::Pool<diesel::r2d2::ConnectionManager<diesel::PgConnection>>;
 pub type ConnectionId = usize;
