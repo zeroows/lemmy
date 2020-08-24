@@ -342,7 +342,7 @@ async fn fetch_remote_community(
     .await?;
     match existing {
       Ok(e) => blocking(context.pool(), move |conn| Post::update(conn, e.id, &post)).await??,
-      Err(_) => blocking(context.pool(), move |conn| Post::create(conn, &post)).await??,
+      Err(_) => blocking(context.pool(), move |conn| Post::upsert(conn, &post)).await??,
     };
     // TODO: we need to send a websocket update here
   }
@@ -367,7 +367,7 @@ pub async fn get_or_fetch_and_insert_post(
       let post = fetch_remote_object::<PageExt>(context.client(), post_ap_id).await?;
       let post_form = PostForm::from_apub(&post, context, Some(post_ap_id.to_owned())).await?;
 
-      let post = blocking(context.pool(), move |conn| Post::create(conn, &post_form)).await??;
+      let post = blocking(context.pool(), move |conn| Post::upsert(conn, &post_form)).await??;
 
       Ok(post)
     }
@@ -397,7 +397,7 @@ pub async fn get_or_fetch_and_insert_comment(
         CommentForm::from_apub(&comment, context, Some(comment_ap_id.to_owned())).await?;
 
       let comment = blocking(context.pool(), move |conn| {
-        Comment::create(conn, &comment_form)
+        Comment::upsert(conn, &comment_form)
       })
       .await??;
 
