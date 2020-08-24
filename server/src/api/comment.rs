@@ -1,6 +1,7 @@
 use crate::{
   api::{
     check_community_ban,
+    get_post,
     get_user_from_jwt,
     get_user_from_jwt_opt,
     is_mod_or_admin,
@@ -12,8 +13,8 @@ use crate::{
   websocket::{
     server::{JoinCommunityRoom, SendComment},
     UserOperation,
-    WebsocketInfo,
   },
+  ConnectionId,
   DbPool,
   LemmyContext,
   LemmyError,
@@ -128,7 +129,7 @@ impl Perform for CreateComment {
   async fn perform(
     &self,
     context: &Data<LemmyContext>,
-    websocket_info: Option<WebsocketInfo>,
+    websocket_id: Option<ConnectionId>,
   ) -> Result<CommentResponse, LemmyError> {
     let data: &CreateComment = &self;
     let user = get_user_from_jwt(&data.auth, context.pool()).await?;
@@ -151,7 +152,7 @@ impl Perform for CreateComment {
 
     // Check for a community ban
     let post_id = data.post_id;
-    let post = blocking(context.pool(), move |conn| Post::read(conn, post_id)).await??;
+    let post = get_post(post_id, context.pool()).await?;
 
     check_community_ban(user.id, post.community_id, context.pool()).await?;
 
@@ -225,17 +226,15 @@ impl Perform for CreateComment {
       form_id: data.form_id.to_owned(),
     };
 
-    if let Some(ws) = websocket_info {
-      ws.chatserver.do_send(SendComment {
-        op: UserOperation::CreateComment,
-        comment: res.clone(),
-        my_id: ws.id,
-      });
+    context.chat_server().do_send(SendComment {
+      op: UserOperation::CreateComment,
+      comment: res.clone(),
+      websocket_id,
+    });
 
-      // strip out the recipient_ids, so that
-      // users don't get double notifs
-      res.recipient_ids = Vec::new();
-    }
+    // strip out the recipient_ids, so that
+    // users don't get double notifs
+    res.recipient_ids = Vec::new();
 
     Ok(res)
   }
@@ -248,7 +247,7 @@ impl Perform for EditComment {
   async fn perform(
     &self,
     context: &Data<LemmyContext>,
-    websocket_info: Option<WebsocketInfo>,
+    websocket_id: Option<ConnectionId>,
   ) -> Result<CommentResponse, LemmyError> {
     let data: &EditComment = &self;
     let user = get_user_from_jwt(&data.auth, context.pool()).await?;
@@ -283,7 +282,7 @@ impl Perform for EditComment {
 
     // Do the mentions / recipients
     let post_id = orig_comment.post_id;
-    let post = blocking(context.pool(), move |conn| Post::read(conn, post_id)).await??;
+    let post = get_post(post_id, context.pool()).await?;
 
     let updated_comment_content = updated_comment.content.to_owned();
     let mentions = scrape_text_for_mentions(&updated_comment_content);
@@ -310,17 +309,15 @@ impl Perform for EditComment {
       form_id: data.form_id.to_owned(),
     };
 
-    if let Some(ws) = websocket_info {
-      ws.chatserver.do_send(SendComment {
-        op: UserOperation::EditComment,
-        comment: res.clone(),
-        my_id: ws.id,
-      });
+    context.chat_server().do_send(SendComment {
+      op: UserOperation::EditComment,
+      comment: res.clone(),
+      websocket_id,
+    });
 
-      // strip out the recipient_ids, so that
-      // users don't get double notifs
-      res.recipient_ids = Vec::new();
-    }
+    // strip out the recipient_ids, so that
+    // users don't get double notifs
+    res.recipient_ids = Vec::new();
 
     Ok(res)
   }
@@ -333,7 +330,7 @@ impl Perform for DeleteComment {
   async fn perform(
     &self,
     context: &Data<LemmyContext>,
-    websocket_info: Option<WebsocketInfo>,
+    websocket_id: Option<ConnectionId>,
   ) -> Result<CommentResponse, LemmyError> {
     let data: &DeleteComment = &self;
     let user = get_user_from_jwt(&data.auth, context.pool()).await?;
@@ -379,7 +376,7 @@ impl Perform for DeleteComment {
 
     // Build the recipients
     let post_id = comment_view.post_id;
-    let post = blocking(context.pool(), move |conn| Post::read(conn, post_id)).await??;
+    let post = get_post(post_id, context.pool()).await?;
     let mentions = vec![];
     let recipient_ids = send_local_notifs(
       mentions,
@@ -397,17 +394,15 @@ impl Perform for DeleteComment {
       form_id: None,
     };
 
-    if let Some(ws) = websocket_info {
-      ws.chatserver.do_send(SendComment {
-        op: UserOperation::DeleteComment,
-        comment: res.clone(),
-        my_id: ws.id,
-      });
+    context.chat_server().do_send(SendComment {
+      op: UserOperation::DeleteComment,
+      comment: res.clone(),
+      websocket_id,
+    });
 
-      // strip out the recipient_ids, so that
-      // users don't get double notifs
-      res.recipient_ids = Vec::new();
-    }
+    // strip out the recipient_ids, so that
+    // users don't get double notifs
+    res.recipient_ids = Vec::new();
 
     Ok(res)
   }
@@ -420,7 +415,7 @@ impl Perform for RemoveComment {
   async fn perform(
     &self,
     context: &Data<LemmyContext>,
-    websocket_info: Option<WebsocketInfo>,
+    websocket_id: Option<ConnectionId>,
   ) -> Result<CommentResponse, LemmyError> {
     let data: &RemoveComment = &self;
     let user = get_user_from_jwt(&data.auth, context.pool()).await?;
@@ -476,7 +471,7 @@ impl Perform for RemoveComment {
 
     // Build the recipients
     let post_id = comment_view.post_id;
-    let post = blocking(context.pool(), move |conn| Post::read(conn, post_id)).await??;
+    let post = get_post(post_id, context.pool()).await?;
     let mentions = vec![];
     let recipient_ids = send_local_notifs(
       mentions,
@@ -494,17 +489,15 @@ impl Perform for RemoveComment {
       form_id: None,
     };
 
-    if let Some(ws) = websocket_info {
-      ws.chatserver.do_send(SendComment {
-        op: UserOperation::RemoveComment,
-        comment: res.clone(),
-        my_id: ws.id,
-      });
+    context.chat_server().do_send(SendComment {
+      op: UserOperation::RemoveComment,
+      comment: res.clone(),
+      websocket_id,
+    });
 
-      // strip out the recipient_ids, so that
-      // users don't get double notifs
-      res.recipient_ids = Vec::new();
-    }
+    // strip out the recipient_ids, so that
+    // users don't get double notifs
+    res.recipient_ids = Vec::new();
 
     Ok(res)
   }
@@ -517,7 +510,7 @@ impl Perform for MarkCommentAsRead {
   async fn perform(
     &self,
     context: &Data<LemmyContext>,
-    _websocket_info: Option<WebsocketInfo>,
+    _websocket_id: Option<ConnectionId>,
   ) -> Result<CommentResponse, LemmyError> {
     let data: &MarkCommentAsRead = &self;
     let user = get_user_from_jwt(&data.auth, context.pool()).await?;
@@ -589,7 +582,7 @@ impl Perform for SaveComment {
   async fn perform(
     &self,
     context: &Data<LemmyContext>,
-    _websocket_info: Option<WebsocketInfo>,
+    _websocket_id: Option<ConnectionId>,
   ) -> Result<CommentResponse, LemmyError> {
     let data: &SaveComment = &self;
     let user = get_user_from_jwt(&data.auth, context.pool()).await?;
@@ -633,7 +626,7 @@ impl Perform for CreateCommentLike {
   async fn perform(
     &self,
     context: &Data<LemmyContext>,
-    websocket_info: Option<WebsocketInfo>,
+    websocket_id: Option<ConnectionId>,
   ) -> Result<CommentResponse, LemmyError> {
     let data: &CreateCommentLike = &self;
     let user = get_user_from_jwt(&data.auth, context.pool()).await?;
@@ -655,7 +648,7 @@ impl Perform for CreateCommentLike {
     .await??;
 
     let post_id = orig_comment.post_id;
-    let post = blocking(context.pool(), move |conn| Post::read(conn, post_id)).await??;
+    let post = get_post(post_id, context.pool()).await?;
     check_community_ban(user.id, post.community_id, context.pool()).await?;
 
     let comment_id = data.comment_id;
@@ -725,17 +718,15 @@ impl Perform for CreateCommentLike {
       form_id: None,
     };
 
-    if let Some(ws) = websocket_info {
-      ws.chatserver.do_send(SendComment {
-        op: UserOperation::CreateCommentLike,
-        comment: res.clone(),
-        my_id: ws.id,
-      });
+    context.chat_server().do_send(SendComment {
+      op: UserOperation::CreateCommentLike,
+      comment: res.clone(),
+      websocket_id,
+    });
 
-      // strip out the recipient_ids, so that
-      // users don't get double notifs
-      res.recipient_ids = Vec::new();
-    }
+    // strip out the recipient_ids, so that
+    // users don't get double notifs
+    res.recipient_ids = Vec::new();
 
     Ok(res)
   }
@@ -748,7 +739,7 @@ impl Perform for GetComments {
   async fn perform(
     &self,
     context: &Data<LemmyContext>,
-    websocket_info: Option<WebsocketInfo>,
+    websocket_id: Option<ConnectionId>,
   ) -> Result<GetCommentsResponse, LemmyError> {
     let data: &GetComments = &self;
     let user = get_user_from_jwt_opt(&data.auth, context.pool()).await?;
@@ -776,17 +767,15 @@ impl Perform for GetComments {
       Err(_) => return Err(APIError::err("couldnt_get_comments").into()),
     };
 
-    if let Some(ws) = websocket_info {
+    if let Some(id) = websocket_id {
       // You don't need to join the specific community room, bc this is already handled by
       // GetCommunity
       if data.community_id.is_none() {
-        if let Some(id) = ws.id {
-          // 0 is the "all" community
-          ws.chatserver.do_send(JoinCommunityRoom {
-            community_id: 0,
-            id,
-          });
-        }
+        // 0 is the "all" community
+        context.chat_server().do_send(JoinCommunityRoom {
+          community_id: 0,
+          id,
+        });
       }
     }
 

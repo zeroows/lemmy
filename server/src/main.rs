@@ -75,18 +75,14 @@ async fn main() -> Result<(), LemmyError> {
     settings.bind, settings.port
   );
 
+  let activity_queue = create_activity_queue();
+  let chat_server =
+    ChatServer::startup(pool.clone(), rate_limiter.clone(), Client::default(), activity_queue.clone()).start();
+
   // Create Http server with websocket support
   HttpServer::new(move || {
-    let activity_queue = create_activity_queue();
-    let chat_server = ChatServer::startup(
-      pool.clone(),
-      rate_limiter.clone(),
-      Client::default(),
-      activity_queue.clone(),
-    )
-    .start();
     let context =
-      LemmyContext::create(pool.clone(), chat_server, Client::default(), activity_queue);
+      LemmyContext::create(pool.clone(), chat_server.to_owned(), Client::default(), activity_queue.to_owned());
     let settings = Settings::get();
     let rate_limiter = rate_limiter.clone();
     App::new()

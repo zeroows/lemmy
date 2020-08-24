@@ -1,7 +1,6 @@
 use crate::{
   api::{comment::*, community::*, post::*, site::*, user::*, Perform},
   rate_limit::RateLimit,
-  websocket::WebsocketInfo,
   LemmyContext,
 };
 use actix_web::{error::ErrorBadRequest, *};
@@ -94,7 +93,8 @@ pub fn config(cfg: &mut web::ServiceConfig, rate_limit: &RateLimit) {
             web::post().to(route_post::<MarkCommentAsRead>),
           )
           .route("/like", web::post().to(route_post::<CreateCommentLike>))
-          .route("/save", web::put().to(route_post::<SaveComment>)),
+          .route("/save", web::put().to(route_post::<SaveComment>))
+          .route("/list", web::get().to(route_get::<GetComments>)),
       )
       // Private Message
       .service(
@@ -136,6 +136,7 @@ pub fn config(cfg: &mut web::ServiceConfig, rate_limit: &RateLimit) {
             "/followed_communities",
             web::get().to(route_get::<GetFollowedCommunities>),
           )
+          .route("/join", web::post().to(route_post::<UserJoin>))
           // Admin action. I don't like that it's in /user
           .route("/ban", web::post().to(route_post::<BanUser>))
           // Account actions. I don't like that they're in /user maybe /accounts
@@ -180,13 +181,8 @@ where
   Request: Perform,
   Request: Send + 'static,
 {
-  let ws_info = WebsocketInfo {
-    chatserver: context.chat_server().to_owned(),
-    id: None,
-  };
-
   let res = data
-    .perform(&context, Some(ws_info))
+    .perform(&context, None)
     .await
     .map(|json| HttpResponse::Ok().json(json))
     .map_err(ErrorBadRequest)?;

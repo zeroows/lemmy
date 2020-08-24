@@ -59,7 +59,7 @@ pub struct StandardMessage {
 pub struct SendAllMessage<Response> {
   pub op: UserOperation,
   pub response: Response,
-  pub my_id: Option<ConnectionId>,
+  pub websocket_id: Option<ConnectionId>,
 }
 
 #[derive(Message)]
@@ -68,7 +68,7 @@ pub struct SendUserRoomMessage<Response> {
   pub op: UserOperation,
   pub response: Response,
   pub recipient_id: UserId,
-  pub my_id: Option<ConnectionId>,
+  pub websocket_id: Option<ConnectionId>,
 }
 
 #[derive(Message)]
@@ -77,7 +77,7 @@ pub struct SendCommunityRoomMessage<Response> {
   pub op: UserOperation,
   pub response: Response,
   pub community_id: CommunityId,
-  pub my_id: Option<ConnectionId>,
+  pub websocket_id: Option<ConnectionId>,
 }
 
 #[derive(Message)]
@@ -85,7 +85,7 @@ pub struct SendCommunityRoomMessage<Response> {
 pub struct SendPost {
   pub op: UserOperation,
   pub post: PostResponse,
-  pub my_id: Option<ConnectionId>,
+  pub websocket_id: Option<ConnectionId>,
 }
 
 #[derive(Message)]
@@ -93,7 +93,7 @@ pub struct SendPost {
 pub struct SendComment {
   pub op: UserOperation,
   pub comment: CommentResponse,
-  pub my_id: Option<ConnectionId>,
+  pub websocket_id: Option<ConnectionId>,
 }
 
 #[derive(Message)]
@@ -290,7 +290,7 @@ impl ChatServer {
     op: &UserOperation,
     response: &Response,
     post_id: PostId,
-    my_id: Option<ConnectionId>,
+    websocket_id: Option<ConnectionId>,
   ) -> Result<(), LemmyError>
   where
     Response: Serialize,
@@ -298,7 +298,7 @@ impl ChatServer {
     let res_str = &to_json_string(op, response)?;
     if let Some(sessions) = self.post_rooms.get(&post_id) {
       for id in sessions {
-        if let Some(my_id) = my_id {
+        if let Some(my_id) = websocket_id {
           if *id == my_id {
             continue;
           }
@@ -314,7 +314,7 @@ impl ChatServer {
     op: &UserOperation,
     response: &Response,
     community_id: CommunityId,
-    my_id: Option<ConnectionId>,
+    websocket_id: Option<ConnectionId>,
   ) -> Result<(), LemmyError>
   where
     Response: Serialize,
@@ -322,7 +322,7 @@ impl ChatServer {
     let res_str = &to_json_string(op, response)?;
     if let Some(sessions) = self.community_rooms.get(&community_id) {
       for id in sessions {
-        if let Some(my_id) = my_id {
+        if let Some(my_id) = websocket_id {
           if *id == my_id {
             continue;
           }
@@ -337,14 +337,14 @@ impl ChatServer {
     &self,
     op: &UserOperation,
     response: &Response,
-    my_id: Option<ConnectionId>,
+    websocket_id: Option<ConnectionId>,
   ) -> Result<(), LemmyError>
   where
     Response: Serialize,
   {
     let res_str = &to_json_string(op, response)?;
     for id in self.sessions.keys() {
-      if let Some(my_id) = my_id {
+      if let Some(my_id) = websocket_id {
         if *id == my_id {
           continue;
         }
@@ -359,7 +359,7 @@ impl ChatServer {
     op: &UserOperation,
     response: &Response,
     recipient_id: UserId,
-    my_id: Option<ConnectionId>,
+    websocket_id: Option<ConnectionId>,
   ) -> Result<(), LemmyError>
   where
     Response: Serialize,
@@ -367,7 +367,7 @@ impl ChatServer {
     let res_str = &to_json_string(op, response)?;
     if let Some(sessions) = self.user_rooms.get(&recipient_id) {
       for id in sessions {
-        if let Some(my_id) = my_id {
+        if let Some(my_id) = websocket_id {
           if *id == my_id {
             continue;
           }
@@ -382,7 +382,7 @@ impl ChatServer {
     &self,
     user_operation: &UserOperation,
     comment: &CommentResponse,
-    my_id: Option<ConnectionId>,
+    websocket_id: Option<ConnectionId>,
   ) -> Result<(), LemmyError> {
     let mut comment_reply_sent = comment.clone();
     comment_reply_sent.comment.my_vote = None;
@@ -396,21 +396,26 @@ impl ChatServer {
       user_operation,
       &comment_post_sent,
       comment_post_sent.comment.post_id,
-      my_id,
+      websocket_id,
     )?;
 
     // Send it to the recipient(s) including the mentioned users
     for recipient_id in &comment_reply_sent.recipient_ids {
-      self.send_user_room_message(user_operation, &comment_reply_sent, *recipient_id, my_id)?;
+      self.send_user_room_message(
+        user_operation,
+        &comment_reply_sent,
+        *recipient_id,
+        websocket_id,
+      )?;
     }
 
     // Send it to the community too
-    self.send_community_room_message(user_operation, &comment_post_sent, 0, my_id)?;
+    self.send_community_room_message(user_operation, &comment_post_sent, 0, websocket_id)?;
     self.send_community_room_message(
       user_operation,
       &comment_post_sent,
       comment.comment.community_id,
-      my_id,
+      websocket_id,
     )?;
 
     Ok(())
@@ -420,7 +425,7 @@ impl ChatServer {
     &self,
     user_operation: &UserOperation,
     post: &PostResponse,
-    my_id: Option<ConnectionId>,
+    websocket_id: Option<ConnectionId>,
   ) -> Result<(), LemmyError> {
     let community_id = post.post.community_id;
 
@@ -430,11 +435,11 @@ impl ChatServer {
     post_sent.post.user_id = None;
 
     // Send it to /c/all and that community
-    self.send_community_room_message(user_operation, &post_sent, 0, my_id)?;
-    self.send_community_room_message(user_operation, &post_sent, community_id, my_id)?;
+    self.send_community_room_message(user_operation, &post_sent, 0, websocket_id)?;
+    self.send_community_room_message(user_operation, &post_sent, community_id, websocket_id)?;
 
     // Send it to the post room
-    self.send_post_room_message(user_operation, &post_sent, post.post.id, my_id)?;
+    self.send_post_room_message(user_operation, &post_sent, post.post.id, websocket_id)?;
 
     Ok(())
   }
@@ -478,7 +483,7 @@ impl ChatServer {
         activity_queue,
       };
       let args = Args {
-        context: &context,
+        context,
         rate_limiter,
         id: msg.id,
         ip,
@@ -572,7 +577,7 @@ impl ChatServer {
 }
 
 struct Args<'a> {
-  context: &'a LemmyContext,
+  context: LemmyContext,
   rate_limiter: RateLimit,
   id: ConnectionId,
   ip: IPAddr,
@@ -594,18 +599,13 @@ where
     data,
   } = args;
 
-  let ws_info = WebsocketInfo {
-    chatserver: context.chat_server().to_owned(),
-    id: Some(id),
-  };
-
   let data = data.to_string();
   let op2 = op.clone();
 
   let fut = async move {
     let parsed_data: Data = serde_json::from_str(&data)?;
     let res = parsed_data
-      .perform(&web::Data::new(context.to_owned()), Some(ws_info))
+      .perform(&web::Data::new(context), Some(id))
       .await?;
     to_json_string(&op, &res)
   };
@@ -699,7 +699,7 @@ where
 
   fn handle(&mut self, msg: SendAllMessage<Response>, _: &mut Context<Self>) {
     self
-      .send_all_message(&msg.op, &msg.response, msg.my_id)
+      .send_all_message(&msg.op, &msg.response, msg.websocket_id)
       .ok();
   }
 }
@@ -712,7 +712,7 @@ where
 
   fn handle(&mut self, msg: SendUserRoomMessage<Response>, _: &mut Context<Self>) {
     self
-      .send_user_room_message(&msg.op, &msg.response, msg.recipient_id, msg.my_id)
+      .send_user_room_message(&msg.op, &msg.response, msg.recipient_id, msg.websocket_id)
       .ok();
   }
 }
@@ -725,7 +725,7 @@ where
 
   fn handle(&mut self, msg: SendCommunityRoomMessage<Response>, _: &mut Context<Self>) {
     self
-      .send_community_room_message(&msg.op, &msg.response, msg.community_id, msg.my_id)
+      .send_community_room_message(&msg.op, &msg.response, msg.community_id, msg.websocket_id)
       .ok();
   }
 }
@@ -734,7 +734,7 @@ impl Handler<SendPost> for ChatServer {
   type Result = ();
 
   fn handle(&mut self, msg: SendPost, _: &mut Context<Self>) {
-    self.send_post(&msg.op, &msg.post, msg.my_id).ok();
+    self.send_post(&msg.op, &msg.post, msg.websocket_id).ok();
   }
 }
 
@@ -742,7 +742,9 @@ impl Handler<SendComment> for ChatServer {
   type Result = ();
 
   fn handle(&mut self, msg: SendComment, _: &mut Context<Self>) {
-    self.send_comment(&msg.op, &msg.comment, msg.my_id).ok();
+    self
+      .send_comment(&msg.op, &msg.comment, msg.websocket_id)
+      .ok();
   }
 }
 

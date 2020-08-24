@@ -21,7 +21,7 @@ import {
   API,
 } from './shared';
 
-import { PostResponse } from '../interfaces';
+import { PostResponse } from 'lemmy-js-client';
 
 let postRes: PostResponse;
 
@@ -55,6 +55,11 @@ test('Create a comment', async () => {
   expect(betaComment.community_local).toBe(true);
   expect(betaComment.creator_local).toBe(false);
   expect(betaComment.score).toBe(1);
+});
+
+test('Create a comment in a non-existent post', async () => {
+  let commentRes = await createComment(alpha, -1);
+  expect(commentRes).toStrictEqual({ error: 'couldnt_find_post' });
 });
 
 test('Update a comment', async () => {
@@ -131,7 +136,7 @@ test('Remove a comment from admin and community on the same instance', async () 
 test('Remove a comment from admin and community on different instance', async () => {
   let alphaUser = await registerUser(alpha);
   let newAlphaApi: API = {
-    url: alpha.url,
+    client: alpha.client,
     auth: alphaUser.jwt,
   };
 
