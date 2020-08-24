@@ -183,7 +183,8 @@ impl Post {
     let existing = Self::read_from_apub_id(conn, &post_form.ap_id);
     match existing {
       Err(NotFound {}) => Ok(Self::create(conn, &post_form)?),
-      Ok(p) => Ok(Self::update(conn, p.id, &post_form)?),
+      // both the old and new comment should be identical so no need to do an update here
+      Ok(p) => Ok(Self::read(conn, p.id)?),
       Err(e) => Err(e),
     }
   }
