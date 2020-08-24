@@ -61,6 +61,7 @@ impl Crud<CommentForm> for Comment {
   }
 
   fn create(conn: &PgConnection, comment_form: &CommentForm) -> Result<Self, Error> {
+    println!("creating {}", &comment_form.ap_id);
     use crate::schema::comment::dsl::*;
     insert_into(comment)
       .values(comment_form)
@@ -163,13 +164,17 @@ impl Comment {
   }
 
   pub fn upsert(conn: &PgConnection, comment_form: &CommentForm) -> Result<Self, Error> {
+    println!("Comment::upsert() (entered into function)");
     let existing = Self::read_from_apub_id(conn, &comment_form.ap_id);
-    match existing {
+    println!("Comment::upsert() (checked if comment exists)");
+    let x = match existing {
       Err(NotFound {}) => Ok(Self::create(conn, &comment_form)?),
       // both the old and new comment should be identical so no need to do an update here
       Ok(p) => Ok(Self::read(conn, p.id)?),
       Err(e) => Err(e),
-    }
+    };
+    println!("Comment::upsert() (after match statement)");
+    x
   }
 }
 
