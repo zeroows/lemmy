@@ -160,6 +160,15 @@ impl Community {
       .unwrap_or_default()
       .contains(&user_id)
   }
+
+  pub fn upsert(conn: &PgConnection, community_form: &CommunityForm) -> Result<Community, Error> {
+    let existing = Self::read_from_actor_id(conn, &community_form.actor_id);
+    match existing {
+      Err(NotFound {}) => Ok(Self::create(conn, &community_form)?),
+      Ok(c) => Ok(Self::update(conn, c.id, &community_form)?),
+      Err(e) => Err(e),
+    }
+  }
 }
 
 #[derive(Identifiable, Queryable, Associations, PartialEq, Debug)]

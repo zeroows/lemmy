@@ -230,7 +230,7 @@ pub async fn get_or_fetch_and_upsert_user(
       let person = fetch_remote_object::<PersonExt>(context.client(), apub_id).await?;
 
       let uf = UserForm::from_apub(&person, context, Some(apub_id.to_owned())).await?;
-      let user = blocking(context.pool(), move |conn| User_::create(conn, &uf)).await??;
+      let user = blocking(context.pool(), move |conn| User_::upsert(conn, &uf)).await??;
 
       Ok(user)
     }
@@ -286,14 +286,7 @@ async fn fetch_remote_community(
   let group = fetch_remote_object::<GroupExt>(context.client(), apub_id).await?;
 
   let cf = CommunityForm::from_apub(&group, context, Some(apub_id.to_owned())).await?;
-  let community = blocking(context.pool(), move |conn| {
-    if let Some(cid) = community_id {
-      Community::update(conn, cid, &cf)
-    } else {
-      Community::create(conn, &cf)
-    }
-  })
-  .await??;
+  let community = blocking(context.pool(), move |conn| Community::upsert(conn, &cf)).await??;
 
   // Also add the community moderators too
   let attributed_to = group.inner.attributed_to().context(location_info!())?;

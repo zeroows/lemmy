@@ -152,6 +152,15 @@ impl User_ {
   pub fn get_profile_url(&self, hostname: &str) -> String {
     format!("https://{}/u/{}", hostname, self.name)
   }
+
+  pub fn upsert(conn: &PgConnection, user_form: &UserForm) -> Result<User_, Error> {
+    let existing = Self::read_from_actor_id(conn, &user_form.actor_id);
+    match existing {
+      Err(NotFound {}) => Ok(Self::create(conn, &user_form)?),
+      Ok(u) => Ok(Self::update(conn, u.id, &user_form)?),
+      Err(e) => Err(e),
+    }
+  }
 }
 
 #[cfg(test)]
