@@ -180,13 +180,11 @@ impl Post {
   }
 
   pub fn upsert(conn: &PgConnection, post_form: &PostForm) -> Result<Post, Error> {
-    let existing = Self::read_from_apub_id(conn, &post_form.ap_id);
-    match existing {
-      Err(NotFound {}) => Ok(Self::create(conn, &post_form)?),
-      // both the old and new comment should be identical so no need to do an update here
-      Ok(p) => Ok(Self::read(conn, p.id)?),
-      Err(e) => Err(e),
-    }
+    use crate::schema::post::dsl::*;
+    insert_into(post)
+      .values(post_form)
+      .on_conflict_do_nothing()
+      .get_result::<Self>(conn)
   }
 }
 

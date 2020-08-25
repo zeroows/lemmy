@@ -154,12 +154,12 @@ impl User_ {
   }
 
   pub fn upsert(conn: &PgConnection, user_form: &UserForm) -> Result<User_, Error> {
-    let existing = Self::read_from_actor_id(conn, &user_form.actor_id);
-    match existing {
-      Err(NotFound {}) => Ok(Self::create(conn, &user_form)?),
-      Ok(u) => Ok(Self::update(conn, u.id, &user_form)?),
-      Err(e) => Err(e),
-    }
+    insert_into(user_)
+      .values(user_form)
+      .on_conflict(actor_id)
+      .do_update()
+      .set(user_form)
+      .get_result::<Self>(conn)
   }
 }
 
