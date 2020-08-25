@@ -39,13 +39,13 @@ pub struct CommentForm {
   pub published: Option<chrono::NaiveDateTime>,
   pub updated: Option<chrono::NaiveDateTime>,
   pub deleted: Option<bool>,
-  pub ap_id: String,
+  pub ap_id: Option<String>,
   pub local: bool,
 }
 
 impl CommentForm {
   pub fn get_ap_id(&self) -> Result<Url, ParseError> {
-    Url::parse(&self.ap_id)
+    Url::parse(&self.ap_id.as_ref().unwrap_or(&"not_a_url".to_string()))
   }
 }
 
@@ -61,7 +61,7 @@ impl Crud<CommentForm> for Comment {
   }
 
   fn create(conn: &PgConnection, comment_form: &CommentForm) -> Result<Self, Error> {
-    println!("creating {}", &comment_form.ap_id);
+    // println!("creating {}", &comment_form.ap_id.as_ref().unwrap());
     use crate::schema::comment::dsl::*;
     insert_into(comment)
       .values(comment_form)
@@ -165,7 +165,7 @@ impl Comment {
 
   pub fn upsert(conn: &PgConnection, comment_form: &CommentForm) -> Result<Self, Error> {
     println!("Comment::upsert() (entered into function)");
-    let existing = Self::read_from_apub_id(conn, &comment_form.ap_id);
+    let existing = Self::read_from_apub_id(conn, &comment_form.ap_id.as_ref().unwrap());
     println!("Comment::upsert() (checked if comment exists)");
     let x = match existing {
       Err(NotFound {}) => Ok(Self::create(conn, &comment_form)?),
@@ -278,7 +278,7 @@ mod tests {
       lang: "browser".into(),
       show_avatars: true,
       send_notifications_to_email: false,
-      actor_id: "changeme_283687".into(),
+      actor_id: None,
       bio: None,
       local: true,
       private_key: None,
@@ -298,7 +298,7 @@ mod tests {
       deleted: None,
       updated: None,
       nsfw: false,
-      actor_id: "changeme_928738972".into(),
+      actor_id: None,
       local: true,
       private_key: None,
       public_key: None,
@@ -326,7 +326,7 @@ mod tests {
       embed_description: None,
       embed_html: None,
       thumbnail_url: None,
-      ap_id: "http://fake.com".into(),
+      ap_id: None,
       local: true,
       published: None,
     };
@@ -343,7 +343,7 @@ mod tests {
       parent_id: None,
       published: None,
       updated: None,
-      ap_id: "http://fake.com".into(),
+      ap_id: None,
       local: true,
     };
 
@@ -360,7 +360,7 @@ mod tests {
       parent_id: None,
       published: inserted_comment.published,
       updated: None,
-      ap_id: "http://fake.com".into(),
+      ap_id: inserted_comment.ap_id.to_owned(),
       local: true,
     };
 
@@ -374,7 +374,7 @@ mod tests {
       read: None,
       published: None,
       updated: None,
-      ap_id: "http://fake.com".into(),
+      ap_id: None,
       local: true,
     };
 

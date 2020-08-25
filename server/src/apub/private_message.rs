@@ -111,7 +111,7 @@ impl FromApub for PrivateMessageForm {
       updated: note.updated().map(|u| u.to_owned().naive_local()),
       deleted: None,
       read: None,
-      ap_id: check_actor_domain(note, expected_domain)?,
+      ap_id: Some(check_actor_domain(note, expected_domain)?),
       local: false,
     })
   }

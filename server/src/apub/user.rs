@@ -269,7 +269,7 @@ impl FromApub for UserForm {
       show_avatars: false,
       send_notifications_to_email: false,
       matrix_user_id: None,
-      actor_id: check_actor_domain(person, expected_domain)?,
+      actor_id: Some(check_actor_domain(person, expected_domain)?),
       bio,
       local: false,
       private_key: None,

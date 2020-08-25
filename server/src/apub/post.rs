@@ -289,7 +289,7 @@ impl FromApub for PostForm {
       embed_description: embed.description,
       embed_html: embed.html,
       thumbnail_url,
-      ap_id: check_actor_domain(page, expected_domain)?,
+      ap_id: Some(check_actor_domain(page, expected_domain)?),
       local: false,
     })
   }

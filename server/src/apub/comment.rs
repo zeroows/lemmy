@@ -192,7 +192,7 @@ impl FromApub for CommentForm {
       published: note.published().map(|u| u.to_owned().naive_local()),
       updated: note.updated().map(|u| u.to_owned().naive_local()),
       deleted: None,
-      ap_id: check_actor_domain(note, expected_domain)?,
+      ap_id: Some(check_actor_domain(note, expected_domain)?),
       local: false,
     })
   }
