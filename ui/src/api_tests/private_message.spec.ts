@@ -8,6 +8,7 @@ import {
   listPrivateMessages,
   deletePrivateMessage,
   unfollowRemotes,
+  delay,
 } from './shared';
 
 let recipient_id: number;
@@ -27,6 +28,7 @@ test('Create a private message', async () => {
   expect(pmRes.message.local).toBe(true);
   expect(pmRes.message.creator_local).toBe(true);
   expect(pmRes.message.recipient_local).toBe(false);
+  await delay();
 
   let betaPms = await listPrivateMessages(beta);
   expect(betaPms.messages[0].content).toBeDefined();
@@ -39,7 +41,9 @@ test('Update a private message', async () => {
   let updatedContent = 'A jest test federated private message edited';
 
   let pmRes = await createPrivateMessage(alpha, recipient_id);
+  await delay();
   let pmUpdated = await updatePrivateMessage(alpha, pmRes.message.id);
+  await delay();
   expect(pmUpdated.message.content).toBe(updatedContent);
 
   let betaPms = await listPrivateMessages(beta);
@@ -48,9 +52,11 @@ test('Update a private message', async () => {
 
 test('Delete a private message', async () => {
   let pmRes = await createPrivateMessage(alpha, recipient_id);
+  await delay();
   let betaPms1 = await listPrivateMessages(beta);
   let deletedPmRes = await deletePrivateMessage(alpha, true, pmRes.message.id);
   expect(deletedPmRes.message.deleted).toBe(true);
+  await delay();
 
   // The GetPrivateMessages filters out deleted,
   // even though they are in the actual database.
@@ -65,6 +71,7 @@ test('Delete a private message', async () => {
     pmRes.message.id
   );
   expect(undeletedPmRes.message.deleted).toBe(false);
+  await delay();
 
   let betaPms3 = await listPrivateMessages(beta);
   expect(betaPms3.messages.length).toBe(betaPms1.messages.length);

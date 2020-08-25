@@ -183,7 +183,9 @@ impl Post {
     use crate::schema::post::dsl::*;
     insert_into(post)
       .values(post_form)
-      .on_conflict_do_nothing()
+      .on_conflict(ap_id)
+      .do_update()
+      .set(post_form)
       .get_result::<Self>(conn)
   }
 }

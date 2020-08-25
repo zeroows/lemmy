@@ -119,6 +119,17 @@ impl PrivateMessage {
     .set(read.eq(true))
     .get_results::<Self>(conn)
   }
+
+  // TODO use this
+  pub fn upsert(conn: &PgConnection, private_message_form: &PrivateMessageForm) -> Result<Self, Error> {
+    use crate::schema::private_message::dsl::*;
+    insert_into(private_message)
+      .values(private_message_form)
+      .on_conflict(ap_id)
+      .do_update()
+      .set(private_message_form)
+      .get_result::<Self>(conn)
+  }
 }
 
 #[cfg(test)]
