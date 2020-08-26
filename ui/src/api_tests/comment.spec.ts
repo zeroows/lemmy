@@ -99,10 +99,10 @@ test('Delete a comment', async () => {
   // let betaComment = searchBeta.comments[0];
   // Create a fake post, just to get the previous new post id
   let createdBetaPostJustToGetId = await createPost(beta, 2);
-  await delay();
   let betaPost = await getPost(beta, createdBetaPostJustToGetId.post.id - 1);
   let betaComment = betaPost.comments[0];
   expect(betaComment.deleted).toBe(true);
+  await delay();
 
   let undeleteCommentRes = await deleteComment(
     alpha,

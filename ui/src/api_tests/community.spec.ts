@@ -71,6 +71,7 @@ test('Remove community', async () => {
   let communityA = search.communities[0];
   // TODO this fails currently, because no updates are pushed
   // expect(communityA.removed).toBe(true);
+  await delay();
 
   // unremove
   let unremoveCommunityRes = await removeCommunity(

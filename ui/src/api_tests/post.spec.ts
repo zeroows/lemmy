@@ -1,3 +1,4 @@
+jest.setTimeout(120000);
 import {
   alpha,
   beta,
@@ -203,13 +204,14 @@ test('Delete a post', async () => {
 
   let deletedPost = await deletePost(alpha, true, postRes.post);
   expect(deletedPost.post.deleted).toBe(true);
-  await delay();
+  await delay(5000);
 
   // Make sure lemmy beta sees post is deleted
   let createFakeBetaPostToGetId = (await createPost(beta, 2)).post.id - 1;
   await delay();
   let betaPost = await getPost(beta, createFakeBetaPostToGetId);
   expect(betaPost.post.deleted).toBe(true);
+  await delay();
 
   // Undelete
   let undeletedPost = await deletePost(alpha, false, postRes.post);
@@ -239,6 +241,7 @@ test('Remove a post from admin and community on different instance', async () =>
   await delay();
   let betaPost = await getPost(beta, createFakeBetaPostToGetId);
   expect(betaPost.post.removed).toBe(false);
+  await delay();
 
   // Undelete
   let undeletedPost = await removePost(alpha, false, postRes.post);
@@ -257,17 +260,18 @@ test('Remove a post from admin and community on same instance', async () => {
 
   // Get the id for beta
   let createFakeBetaPostToGetId = (await createPost(beta, 2)).post.id - 1;
-  await delay();
   let betaPost = await getPost(beta, createFakeBetaPostToGetId);
+  await delay();
 
   // The beta admin removes it (the community lives on beta)
   let removePostRes = await removePost(beta, true, betaPost.post);
   expect(removePostRes.post.removed).toBe(true);
-  await delay();
+  await delay(5000);
 
   // Make sure lemmy alpha sees post is removed
   let alphaPost = await getPost(alpha, postRes.post.id);
   expect(alphaPost.post.removed).toBe(true);
+  await delay();
 
   // Undelete
   let undeletedPost = await removePost(beta, false, betaPost.post);

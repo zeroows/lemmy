@@ -41,10 +41,9 @@ test('Update a private message', async () => {
   let updatedContent = 'A jest test federated private message edited';
 
   let pmRes = await createPrivateMessage(alpha, recipient_id);
-  await delay();
   let pmUpdated = await updatePrivateMessage(alpha, pmRes.message.id);
-  await delay();
   expect(pmUpdated.message.content).toBe(updatedContent);
+  await delay();
 
   let betaPms = await listPrivateMessages(beta);
   expect(betaPms.messages[0].content).toBe(updatedContent);
@@ -63,6 +62,7 @@ test('Delete a private message', async () => {
   // no reason to show them
   let betaPms2 = await listPrivateMessages(beta);
   expect(betaPms2.messages.length).toBe(betaPms1.messages.length - 1);
+  await delay();
 
   // Undelete
   let undeletedPmRes = await deletePrivateMessage(
