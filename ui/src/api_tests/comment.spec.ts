@@ -31,6 +31,7 @@ beforeAll(async () => {
   await followBeta(alpha);
   await followBeta(gamma);
   let search = await searchForBetaCommunity(alpha);
+  await delay(10000);
   postRes = await createPost(
     alpha,
     search.communities.filter(c => c.local == false)[0].id
@@ -48,7 +49,7 @@ test('Create a comment', async () => {
   expect(commentRes.comment.community_local).toBe(false);
   expect(commentRes.comment.creator_local).toBe(true);
   expect(commentRes.comment.score).toBe(1);
-  await delay(5000);
+  await delay();
 
   // Make sure that comment is liked on beta
   let searchBeta = await searchComment(beta, commentRes.comment);
@@ -92,16 +93,10 @@ test('Delete a comment', async () => {
   expect(deleteCommentRes.comment.deleted).toBe(true);
   await delay();
 
-  // Make sure that comment is deleted on beta
-  // The search doesnt work below, because it returns a tombstone / http::gone
-  // let searchBeta = await searchComment(beta, commentRes.comment);
-  // console.log(searchBeta);
-  // let betaComment = searchBeta.comments[0];
-  // Create a fake post, just to get the previous new post id
-  let createdBetaPostJustToGetId = await createPost(beta, 2);
-  let betaPost = await getPost(beta, createdBetaPostJustToGetId.post.id - 1);
-  let betaComment = betaPost.comments[0];
-  expect(betaComment.deleted).toBe(true);
+  // Make sure that comment is undefined on beta
+  let searchBeta = await searchComment(beta, commentRes.comment);
+  let betaComment = searchBeta.comments[0];
+  expect(betaComment).toBeUndefined();
   await delay();
 
   let undeleteCommentRes = await deleteComment(

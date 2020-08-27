@@ -15,7 +15,9 @@ let recipient_id: number;
 
 beforeAll(async () => {
   await setupLogins();
-  recipient_id = (await followBeta(alpha)).community.creator_id;
+  let follow = await followBeta(alpha);
+  await delay(10000);
+  recipient_id = follow.community.creator_id;
 });
 
 afterAll(async () => {

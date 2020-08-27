@@ -28,6 +28,7 @@ beforeAll(async () => {
   await followBeta(gamma);
   await followBeta(delta);
   await followBeta(epsilon);
+  await delay(10000);
 });
 
 afterAll(async () => {
@@ -45,7 +46,7 @@ test('Create a post', async () => {
   expect(postRes.post.community_local).toBe(false);
   expect(postRes.post.creator_local).toBe(true);
   expect(postRes.post.score).toBe(1);
-  await delay(5000);
+  await delay();
 
   // Make sure that post is liked on beta
   let searchBeta = await searchPost(beta, postRes.post);
@@ -204,11 +205,12 @@ test('Delete a post', async () => {
 
   let deletedPost = await deletePost(alpha, true, postRes.post);
   expect(deletedPost.post.deleted).toBe(true);
-  await delay(5000);
+  await delay();
 
   // Make sure lemmy beta sees post is deleted
-  let createFakeBetaPostToGetId = (await createPost(beta, 2)).post.id - 1;
+  let newPost = await createPost(beta, 2);
   await delay();
+  let createFakeBetaPostToGetId = newPost.post.id - 1;
   let betaPost = await getPost(beta, createFakeBetaPostToGetId);
   expect(betaPost.post.deleted).toBe(true);
   await delay();
@@ -266,7 +268,7 @@ test('Remove a post from admin and community on same instance', async () => {
   // The beta admin removes it (the community lives on beta)
   let removePostRes = await removePost(beta, true, betaPost.post);
   expect(removePostRes.post.removed).toBe(true);
-  await delay(5000);
+  await delay();
 
   // Make sure lemmy alpha sees post is removed
   let alphaPost = await getPost(alpha, postRes.post.id);
