@@ -6,7 +6,6 @@ pub extern crate lazy_static;
 use actix::prelude::*;
 use actix_web::{
   body::Body,
-  client::Client,
   dev::{Service, ServiceRequest, ServiceResponse},
   http::{
     header::{CACHE_CONTROL, CONTENT_TYPE},
@@ -30,6 +29,7 @@ use lemmy_server::{
   LemmyError,
 };
 use lemmy_utils::{settings::Settings, CACHE_CONTROL_REGEX};
+use reqwest::Client;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
