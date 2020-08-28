@@ -14,6 +14,7 @@ pub extern crate dotenv;
 pub extern crate jsonwebtoken;
 extern crate log;
 pub extern crate openssl;
+pub extern crate reqwest;
 pub extern crate rss;
 pub extern crate serde;
 pub extern crate serde_json;
@@ -35,12 +36,13 @@ use crate::{
 };
 
 use actix::Addr;
-use actix_web::{client::Client, dev::ConnectionInfo};
+use actix_web::dev::ConnectionInfo;
 use anyhow::anyhow;
 use background_jobs::QueueHandle;
 use lemmy_utils::{get_apub_protocol_string, settings::Settings};
 use log::error;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use reqwest::Client;
 use serde::Deserialize;
 use std::process::Command;
 
@@ -130,7 +132,7 @@ pub struct IframelyResponse {
 pub async fn fetch_iframely(client: &Client, url: &str) -> Result<IframelyResponse, LemmyError> {
   let fetch_url = format!("http://iframely/oembed?url={}", url);
 
-  let mut response = retry(|| client.get(&fetch_url).send()).await?;
+  let response = retry(|| client.get(&fetch_url).send()).await?;
 
   let res: IframelyResponse = response
     .json()
@@ -159,7 +161,7 @@ pub async fn fetch_pictrs(client: &Client, image_url: &str) -> Result<PictrsResp
     utf8_percent_encode(image_url, NON_ALPHANUMERIC) // TODO this might not be needed
   );
 
-  let mut response = retry(|| client.get(&fetch_url).send()).await?;
+  let response = retry(|| client.get(&fetch_url).send()).await?;
 
   let response: PictrsResponse = response
     .json()
@@ -332,7 +334,7 @@ mod tests {
   #[test]
   fn test_image() {
     actix_rt::System::new("tset_image").block_on(async move {
-      let client = actix_web::client::Client::default();
+      let client = reqwest::Client::default();
       assert!(is_image_content_type(&client, "https://1734811051.rsc.cdn77.org/data/images/full/365645/as-virus-kills-navajos-in-their-homes-tribal-women-provide-lifeline.jpg?w=600?w=650").await.is_ok());
       assert!(is_image_content_type(&client,
                                     "https://twitter.com/BenjaminNorton/status/1259922424272957440?s=20"

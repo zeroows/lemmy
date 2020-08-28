@@ -15,7 +15,6 @@ use crate::{
   LemmyError,
 };
 use activitystreams::{base::BaseExt, collection::OrderedCollection, object::Note, prelude::*};
-use actix_web::client::Client;
 use anyhow::{anyhow, Context};
 use chrono::NaiveDateTime;
 use diesel::result::Error::NotFound;
@@ -35,6 +34,7 @@ use lemmy_db::{
 };
 use lemmy_utils::{get_apub_protocol_string, location_info};
 use log::debug;
+use reqwest::Client;
 use serde::Deserialize;
 use std::{fmt::Debug, time::Duration};
 use url::Url;
@@ -55,6 +55,9 @@ where
 
   let timeout = Duration::from_secs(60);
 
+  // speed up tests
+  // before: 305s
+  // after: 240s
   let json = retry(|| {
     client
       .get(url.as_str())

@@ -15,11 +15,12 @@ use crate::{
   PostId,
   UserId,
 };
-use actix_web::{client::Client, web};
+use actix_web::web;
 use anyhow::Context as acontext;
 use background_jobs::QueueHandle;
 use lemmy_db::naive_now;
 use lemmy_utils::location_info;
+use reqwest::Client;
 
 /// Chat server sends this messages to session
 #[derive(Message)]
