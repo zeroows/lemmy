@@ -75,6 +75,7 @@ test('Update a comment', async () => {
   );
   expect(updateCommentRes.comment.community_local).toBe(false);
   expect(updateCommentRes.comment.creator_local).toBe(true);
+  await delay();
 
   // Make sure that post is updated on beta
   let searchBeta = await searchComment(beta, commentRes.comment);
@@ -125,7 +126,7 @@ test('Remove a comment from admin and community on the same instance', async () 
   // The beta admin removes it (the community lives on beta)
   let removeCommentRes = await removeComment(beta, true, betaCommentId);
   expect(removeCommentRes.comment.removed).toBe(true);
-  await delay(5000);
+  await delay();
 
   // Make sure that comment is removed on alpha (it gets pushed since an admin from beta removed it)
   let refetchedPost = await getPost(alpha, postRes.post.id);
@@ -353,9 +354,11 @@ test('Fetch in_reply_tos: A is unsubbed from B, B makes a post, and some embedde
   await delay();
 
   // Get the post from alpha
-  let createFakeAlphaPostToGetId = await createPost(alpha, 2);
+  let search = await searchPost(alpha, postRes.post);
+  let alphaPostB = search.posts[0];
   await delay();
-  let alphaPost = await getPost(alpha, createFakeAlphaPostToGetId.post.id - 1);
+
+  let alphaPost = await getPost(alpha, alphaPostB.id);
   expect(alphaPost.post.name).toBeDefined();
   expect(alphaPost.comments[1].content).toBe(parentCommentContent);
   expect(alphaPost.comments[0].content).toBe(updatedCommentContent);

@@ -46,7 +46,7 @@ test('Create a post', async () => {
   expect(postRes.post.community_local).toBe(false);
   expect(postRes.post.creator_local).toBe(true);
   expect(postRes.post.score).toBe(1);
-  await delay(5000);
+  await delay();
 
   // Make sure that post is liked on beta
   let searchBeta = await searchPost(beta, postRes.post);
@@ -208,25 +208,24 @@ test('Delete a post', async () => {
   await delay();
 
   // Make sure lemmy beta sees post is deleted
-  let newPost = await createPost(beta, 2);
-  await delay(5000);
-  let createFakeBetaPostToGetId = newPost.post.id - 1;
-  let betaPost = await getPost(beta, createFakeBetaPostToGetId);
-  // TODO this doesn't work for some reason
-  // expect(betaPost.post.deleted).toBe(true);
-  // await delay();
+  let searchBeta = await searchPost(beta, postRes.post);
+  let betaPost = searchBeta.posts[0];
+  // This will be undefined because of the tombstone
+  expect(betaPost).toBeUndefined();
+  await delay();
 
   // Undelete
   let undeletedPost = await deletePost(alpha, false, postRes.post);
   expect(undeletedPost.post.deleted).toBe(false);
-  await delay(5000);
+  await delay();
 
   // Make sure lemmy beta sees post is undeleted
-  let betaPost2 = await getPost(beta, createFakeBetaPostToGetId);
-  expect(betaPost2.post.deleted).toBe(false);
+  let searchBeta2 = await searchPost(beta, postRes.post);
+  let betaPost2 = searchBeta2.posts[0];
+  expect(betaPost2.deleted).toBe(false);
 
   // Make sure lemmy beta cannot delete the post
-  let deletedPostBeta = await deletePost(beta, true, betaPost2.post);
+  let deletedPostBeta = await deletePost(beta, true, betaPost2);
   expect(deletedPostBeta).toStrictEqual({ error: 'no_post_edit_allowed' });
 });
 
@@ -237,14 +236,12 @@ test('Remove a post from admin and community on different instance', async () =>
 
   let removedPost = await removePost(alpha, true, postRes.post);
   expect(removedPost.post.removed).toBe(true);
-  await delay(5000);
+  await delay();
 
   // Make sure lemmy beta sees post is NOT removed
-  // TODO add these back in at some point
-  let createFakeBetaPostToGetId = (await createPost(beta, 2)).post.id - 1;
-  await delay();
-  let betaPost = await getPost(beta, createFakeBetaPostToGetId);
-  // expect(betaPost.post.removed).toBe(false);
+  let searchBeta = await searchPost(beta, postRes.post);
+  let betaPost = searchBeta.posts[0];
+  expect(betaPost.removed).toBe(false);
   await delay();
 
   // Undelete
@@ -253,8 +250,9 @@ test('Remove a post from admin and community on different instance', async () =>
   await delay();
 
   // Make sure lemmy beta sees post is undeleted
-  let betaPost2 = await getPost(beta, createFakeBetaPostToGetId);
-  // expect(betaPost2.post.removed).toBe(false);
+  let searchBeta2 = await searchPost(beta, postRes.post);
+  let betaPost2 = searchBeta2.posts[0];
+  expect(betaPost2.removed).toBe(false);
 });
 
 test('Remove a post from admin and community on same instance', async () => {
@@ -263,12 +261,12 @@ test('Remove a post from admin and community on same instance', async () => {
   await delay();
 
   // Get the id for beta
-  let createFakeBetaPostToGetId = (await createPost(beta, 2)).post.id - 1;
-  let betaPost = await getPost(beta, createFakeBetaPostToGetId);
-  await delay(5000);
+  let searchBeta = await searchPost(beta, postRes.post);
+  let betaPost = searchBeta.posts[0];
+  await delay();
 
   // The beta admin removes it (the community lives on beta)
-  let removePostRes = await removePost(beta, true, betaPost.post);
+  let removePostRes = await removePost(beta, true, betaPost);
   expect(removePostRes.post.removed).toBe(true);
   await delay();
 
@@ -278,7 +276,7 @@ test('Remove a post from admin and community on same instance', async () => {
   await delay();
 
   // Undelete
-  let undeletedPost = await removePost(beta, false, betaPost.post);
+  let undeletedPost = await removePost(beta, false, betaPost);
   expect(undeletedPost.post.removed).toBe(false);
   await delay();
 
@@ -289,6 +287,7 @@ test('Remove a post from admin and community on same instance', async () => {
 
 test('Search for a post', async () => {
   let search = await searchForBetaCommunity(alpha);
+  await delay();
   let postRes = await createPost(alpha, search.communities[0].id);
   await delay();
   let searchBeta = await searchPost(beta, postRes.post);
