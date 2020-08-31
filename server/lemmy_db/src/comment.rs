@@ -61,9 +61,6 @@ impl Crud<CommentForm> for Comment {
   }
 
   fn create(conn: &PgConnection, comment_form: &CommentForm) -> Result<Self, Error> {
-    if let Some(for_ap_id) = &comment_form.ap_id {
-      println!("creating {}", for_ap_id);
-    }
     use crate::schema::comment::dsl::*;
     insert_into(comment)
       .values(comment_form)
@@ -169,9 +166,7 @@ impl Comment {
     use crate::schema::comment::dsl::*;
     insert_into(comment)
       .values(comment_form)
-      .on_conflict(ap_id)
-      .do_update()
-      .set(comment_form)
+      .on_conflict_do_nothing()
       .get_result::<Self>(conn)
   }
 }
