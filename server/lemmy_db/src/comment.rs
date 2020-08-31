@@ -166,7 +166,9 @@ impl Comment {
     use crate::schema::comment::dsl::*;
     insert_into(comment)
       .values(comment_form)
-      .on_conflict_do_nothing()
+      .on_conflict(ap_id)
+      .do_update()
+      .set(comment_form)
       .get_result::<Self>(conn)
   }
 }
