@@ -16,6 +16,18 @@ services:
       - postgres
       - iframely
 
+  lemmy-ui:
+    image: dessalines/lemmy-ui:0.10.2
+    ports:
+      - "1235:1234"
+    restart: always
+    environment:
+      - LEMMY_INTERNAL_HOST=lemmy:8536
+      - LEMMY_EXTERNAL_HOST=localhost:8536
+      - LEMMY_HTTPS=false
+    depends_on: 
+      - lemmy
+
   postgres:
     image: postgres:12-alpine
     ports:
@@ -30,7 +42,7 @@ services:
     restart: always
 
   pictrs:
-    image: asonix/pictrs:v0.1.13-r0
+    image: asonix/pictrs:v0.2.6-r1
     ports: 
       - "8537:8080"
     user: 991:991
@@ -45,3 +57,4 @@ services:
     volumes:
       - ../iframely.config.local.js:/iframely/config.local.js:ro
     restart: always
+    mem_limit: 200m

@@ -1,57 +1,45 @@
 #!/bin/sh
 set -e
-git checkout main
-
-# Import translations
-git fetch weblate
-git merge weblate/main
+#git checkout main
 
 # Creating the new tag
 new_tag="$1"
 third_semver=$(echo $new_tag | cut -d "." -f 3)
 
-# Setting the version on the front end
-cd ../../
 # Setting the version on the backend
-echo "pub const VERSION: &str = \"$new_tag\";" > "server/src/version.rs"
-git add "server/src/version.rs"
-# Setting the version for Ansible
-echo $new_tag > "ansible/VERSION"
-git add "ansible/VERSION"
+pushd ../../
+echo "pub const VERSION: &str = \"$new_tag\";" > "crates/utils/src/version.rs"
+git add "crates/utils/src/version.rs"
+popd
 
-cd docker/prod || exit
+# Changing various references to the Lemmy version
+sed -i "s/dessalines\/lemmy:.*/dessalines\/lemmy:$new_tag/" ../dev/docker-compose.yml
+sed -i "s/dessalines\/lemmy-ui:.*/dessalines\/lemmy-ui:$new_tag/" ../dev/docker-compose.yml
+sed -i "s/dessalines\/lemmy:.*/dessalines\/lemmy:$new_tag/" ../federation/docker-compose.yml
+sed -i "s/dessalines\/lemmy-ui:.*/dessalines\/lemmy-ui:$new_tag/" ../federation/docker-compose.yml
+git add ../dev/docker-compose.yml
+git add ../federation/docker-compose.yml
 
-# Changing the docker-compose prod
-sed -i "s/dessalines\/lemmy:.*/dessalines\/lemmy:$new_tag/" ../prod/docker-compose.yml
-sed -i "s/dessalines\/lemmy:.*/dessalines\/lemmy:$new_tag/" ../../ansible/templates/docker-compose.yml
-sed -i "s/dessalines\/lemmy:v.*/dessalines\/lemmy:$new_tag/" ../travis/docker_push.sh
-git add ../prod/docker-compose.yml
-git add ../../ansible/templates/docker-compose.yml
-git add ../travis/docker_push.sh
+# The ansible and docker installs should only update for non release-candidates
+# IE, when the third semver is a number, not '2-rc'
+if [ ! -z "${third_semver##*[!0-9]*}" ]; then
+  sed -i "s/dessalines\/lemmy:.*/dessalines\/lemmy:$new_tag/" ../prod/docker-compose.yml
+  sed -i "s/dessalines\/lemmy-ui:.*/dessalines\/lemmy-ui:$new_tag/" ../prod/docker-compose.yml
+  git add ../prod/docker-compose.yml
+
+  # Setting the version for Ansible
+  pushd ../../
+  echo $new_tag > "ansible/VERSION"
+  git add "ansible/VERSION"
+  popd
+fi
 
 # The commit
 git commit -m"Version $new_tag"
 git tag $new_tag
 
-# Now doing the building on travis, but leave this in for when you need to do an arm build
-
 # export COMPOSE_DOCKER_CLI_BUILD=1
 # export DOCKER_BUILDKIT=1
-
-# # Rebuilding docker
-# if [ $third_semver -eq 0 ]; then
-#   # TODO get linux/arm/v7 build working
-#   # Build for Raspberry Pi / other archs too
-#   docker buildx build --platform linux/amd64,linux/arm64 ../../ \
-#     --file Dockerfile \
-#     --tag dessalines/lemmy:$new_tag \
-#     --push
-# else
-#   docker buildx build --platform linux/amd64 ../../ \
-#     --file Dockerfile \
-#     --tag dessalines/lemmy:$new_tag \
-#     --push
-# fi
 
 # Push
 git push origin $new_tag

@@ -1,12 +1,8 @@
 # build folders and similar which are not needed for the docker build
-ui/node_modules
-server/target
-docker/dev/volumes
-docker/federation/volumes
-docker/federation-test/volumes
-.git
+target
+docker
+api_tests
 ansible
-
-# exceptions, needed for federation-test build
-
-!server/target/debug/lemmy_server
+tests
+.git
+*.sh

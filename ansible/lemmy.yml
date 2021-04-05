@@ -12,7 +12,7 @@
 
     - name: install python for Ansible
       # python2-minimal instead of python-minimal for ubuntu 20.04 and up
-      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-setuptools)
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python3-minimal python3-setuptools)
       args:
         executable: /bin/bash
       register: output
@@ -77,7 +77,9 @@
           mode: '0600'
       vars:
         lemmy_docker_image: "dessalines/lemmy:{{ lookup('file', 'VERSION') }}"
+        lemmy_docker_ui_image: "dessalines/lemmy-ui:{{ lookup('file', 'VERSION') }}"
         lemmy_port: "8536"
+        lemmy_ui_port: "1235"
         pictshare_port: "8537"
         iframely_port: "8538"
 

@@ -1,42 +1,50 @@
 <div align="center">
 
 ![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/LemmyNet/lemmy.svg)
-[![Build Status](https://travis-ci.org/LemmyNet/lemmy.svg?branch=main)](https://travis-ci.org/LemmyNet/lemmy)
+[![Build Status](https://cloud.drone.io/api/badges/LemmyNet/lemmy/status.svg)](https://cloud.drone.io/LemmyNet/lemmy/)
 [![GitHub issues](https://img.shields.io/github/issues-raw/LemmyNet/lemmy.svg)](https://github.com/LemmyNet/lemmy/issues)
 [![Docker Pulls](https://img.shields.io/docker/pulls/dessalines/lemmy.svg)](https://cloud.docker.com/repository/docker/dessalines/lemmy/)
-[![Translation status](http://weblate.yerbamate.dev/widgets/lemmy/-/lemmy/svg-badge.svg)](http://weblate.yerbamate.dev/engage/lemmy/)
+[![Translation status](http://weblate.yerbamate.ml/widgets/lemmy/-/lemmy/svg-badge.svg)](http://weblate.yerbamate.ml/engage/lemmy/)
 [![License](https://img.shields.io/github/license/LemmyNet/lemmy.svg)](LICENSE)
 ![GitHub stars](https://img.shields.io/github/stars/LemmyNet/lemmy?style=social)
+[![Awesome Humane Tech](https://raw.githubusercontent.com/humanetech-community/awesome-humane-tech/main/humane-tech-badge.svg?sanitize=true)](https://github.com/humanetech-community/awesome-humane-tech)
 </div>
 
 <p align="center">
-  <a href="https://dev.lemmy.ml/" rel="noopener">
- <img width=200px height=200px src="ui/assets/favicon.svg"></a>
+  <span>English</span> |
+  <a href="readmes/README.es.md">Español</a>
+</p>
 
- <h3 align="center"><a href="https://dev.lemmy.ml">Lemmy</a></h3>
+<p align="center">
+  <a href="https://join.lemmy.ml/" rel="noopener">
+ <img width=200px height=200px src="https://raw.githubusercontent.com/LemmyNet/lemmy-ui/main/src/assets/icons/favicon.svg"></a>
+
+ <h3 align="center"><a href="https://join.lemmy.ml">Lemmy</a></h3>
   <p align="center">
     A link aggregator / Reddit clone for the fediverse.
     <br />
     <br />
-    <a href="https://dev.lemmy.ml">View Site</a>
+    <a href="https://join.lemmy.ml">Join Lemmy</a>
     ·
-    <a href="https://dev.lemmy.ml/docs/index.html">Documentation</a>
+    <a href="https://join.lemmy.ml/docs/en/index.html">Documentation</a>
     ·
     <a href="https://github.com/LemmyNet/lemmy/issues">Report Bug</a>
     ·
     <a href="https://github.com/LemmyNet/lemmy/issues">Request Feature</a>
     ·
     <a href="https://github.com/LemmyNet/lemmy/blob/main/RELEASES.md">Releases</a>
+    ·
+    <a href="https://join.lemmy.ml/docs/en/code_of_conduct.html">Code of Conduct</a>
   </p>
 </p>
 
 ## About The Project
 
-Front Page|Post
+Desktop|Mobile
 ---|---
-![main screen](https://raw.githubusercontent.com/LemmyNet/lemmy/main/docs/img/main_screen.png)|![chat screen](https://raw.githubusercontent.com/LemmyNet/lemmy/main/docs/img/chat_screen.png)
+![desktop](https://raw.githubusercontent.com/LemmyNet/joinlemmy-site/main/src/assets/images/main_img.webp)|![mobile](https://raw.githubusercontent.com/LemmyNet/joinlemmy-site/main/src/assets/images/mobile_pic.webp)
 
-[Lemmy](https://github.com/LemmyNet/lemmy) is similar to sites like [Reddit](https://reddit.com), [Lobste.rs](https://lobste.rs), [Raddle](https://raddle.me), or [Hacker News](https://news.ycombinator.com/): you subscribe to forums you're interested in, post links and discussions, then vote, and comment on them. Behind the scenes, it is very different; anyone can easily run a server, and all these servers are federated (think email), and connected to the same universe, called the [Fediverse](https://en.wikipedia.org/wiki/Fediverse).
+[Lemmy](https://github.com/LemmyNet/lemmy) is similar to sites like [Reddit](https://reddit.com), [Lobste.rs](https://lobste.rs), or [Hacker News](https://news.ycombinator.com/): you subscribe to forums you're interested in, post links and discussions, then vote, and comment on them. Behind the scenes, it is very different; anyone can easily run a server, and all these servers are federated (think email), and connected to the same universe, called the [Fediverse](https://en.wikipedia.org/wiki/Fediverse).
 
 For a link aggregator, this means a user registered on one server can subscribe to forums on any other server, and can have discussions with users registered elsewhere.
 
@@ -44,7 +52,7 @@ The overall goal is to create an easily self-hostable, decentralized alternative
 
 Each Lemmy server can set its own moderation policy; appointing site-wide admins, and community moderators to keep out the trolls, and foster a healthy, non-toxic environment where all can feel comfortable contributing.
 
-*Note: Federation is still in active development and the WebSocket, as well as, HTTP API are currently unstable*
+*Note: The WebSocket and HTTP APIs are currently unstable*
 
 ### Why's it called Lemmy?
 
@@ -65,7 +73,7 @@ Each Lemmy server can set its own moderation policy; appointing site-wide admins
 
 - Open source, [AGPL License](/LICENSE).
 - Self hostable, easy to deploy.
-  - Comes with [Docker](#docker), [Ansible](#ansible), [Kubernetes](#kubernetes).
+  - Comes with [Docker](https://join.lemmy.ml/docs/en/administration/install_docker.html) and [Ansible](https://join.lemmy.ml/docs/en/administration/install_ansible.html).
 - Clean, mobile-friendly interface.
   - Only a minimum of a username and password is required to sign up!
   - User avatar support.
@@ -100,20 +108,22 @@ Each Lemmy server can set its own moderation policy; appointing site-wide admins
 
 ## Installation
 
-- [Docker](https://dev.lemmy.ml/docs/administration_install_docker.html)
-- [Ansible](https://dev.lemmy.ml/docs/administration_install_ansible.html)
-- [Kubernetes](https://dev.lemmy.ml/docs/administration_install_kubernetes.html)
+- [Docker](https://join.lemmy.ml/docs/en/administration/install_docker.html)
+- [Ansible](https://join.lemmy.ml/docs/en/administration/install_ansible.html)
 
 ## Lemmy Projects
 
 ### Apps
 
-- [Lemmy-mobile (Android / IOS) - React native ( under development )](https://github.com/koredefashokun/lemmy-mobile)
+- [lemmy-ui - The official web app for lemmy](https://github.com/LemmyNet/lemmy-ui)
+- [Lemmur - A mobile client for Lemmy (Android, Linux, Windows)](https://github.com/krawieck/lemmur)
+- [Remmel - A native iOS app](https://github.com/uuttff8/Lemmy-iOS)
 
 ### Libraries
 
 - [lemmy-js-client](https://github.com/LemmyNet/lemmy-js-client)
 - [Kotlin API ( under development )](https://github.com/eiknat/lemmy-client)
+- [Dart API client ( under development )](https://github.com/krawieck/lemmy_api_client)
 
 ## Support / Donate
 
@@ -122,7 +132,7 @@ Lemmy is free, open-source software, meaning no advertising, monetizing, or vent
 - [Support on Liberapay](https://liberapay.com/Lemmy).
 - [Support on Patreon](https://www.patreon.com/dessalines).
 - [Support on OpenCollective](https://opencollective.com/lemmy).
-- [List of Sponsors](https://dev.lemmy.ml/sponsors).
+- [List of Sponsors](https://join.lemmy.ml/sponsors).
 
 ### Crypto
 
@@ -132,24 +142,24 @@ Lemmy is free, open-source software, meaning no advertising, monetizing, or vent
 
 ## Contributing
 
-- [Contributing instructions](https://dev.lemmy.ml/docs/contributing.html)
-- [Docker Development](https://dev.lemmy.ml/docs/contributing_docker_development.html)
-- [Local Development](https://dev.lemmy.ml/docs/contributing_local_development.html)
+- [Contributing instructions](https://join.lemmy.ml/docs/en/contributing/contributing.html)
+- [Docker Development](https://join.lemmy.ml/docs/en/contributing/docker_development.html)
+- [Local Development](https://join.lemmy.ml/docs/en/contributing/local_development.html)
 
 ### Translations
 
-If you want to help with translating, take a look at [Weblate](https://weblate.yerbamate.dev/projects/lemmy/).
+If you want to help with translating, take a look at [Weblate](https://weblate.yerbamate.ml/projects/lemmy/). You can also help by [translating the documentation](https://github.com/LemmyNet/lemmy-docs#adding-a-new-language).
 
 ## Contact
 
 - [Mastodon](https://mastodon.social/@LemmyDev)
-- [Matrix](https://riot.im/app/#/room/#rust-reddit-fediverse:matrix.org)
+- [Matrix](https://matrix.to/#/#lemmy:matrix.org)
 
 ## Code Mirrors
 
 - [GitHub](https://github.com/LemmyNet/lemmy)
-- [Gitea](https://yerbamate.dev/LemmyNet/lemmy)
-- [GitLab](https://gitlab.com/dessalines/lemmy)
+- [Gitea](https://yerbamate.ml/LemmyNet/lemmy)
+- [Codeberg](https://codeberg.org/LemmyNet/lemmy)
 
 ## Credits
 

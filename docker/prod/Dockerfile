@@ -1,53 +1,49 @@
-ARG RUST_BUILDER_IMAGE=shtripok/rust-musl-builder:arm
+ARG RUST_BUILDER_IMAGE=ekidd/rust-musl-builder:1.50.0
 
-FROM $RUST_BUILDER_IMAGE as rust
+# Cargo chef plan
+FROM $RUST_BUILDER_IMAGE as planner
+WORKDIR /app
+RUN cargo install cargo-chef
 
-#ARG RUSTRELEASEDIR="debug"
+# Copy dirs
+COPY ./ ./
+
+RUN sudo chown -R rust:rust .
+RUN cargo chef prepare --recipe-path recipe.json
+
+# Cargo chef cache dependencies
+FROM $RUST_BUILDER_IMAGE as cacher
+ARG CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
+WORKDIR /app
+RUN cargo install cargo-chef
+COPY --from=planner /app/recipe.json ./recipe.json
+RUN sudo chown -R rust:rust .
+RUN cargo chef cook --release --target ${CARGO_BUILD_TARGET} --recipe-path recipe.json
+
+# Build the project
+FROM $RUST_BUILDER_IMAGE as builder
+
+ARG CARGO_BUILD_TARGET=x86_64-unknown-linux-musl
 ARG RUSTRELEASEDIR="release"
 
-# Cache deps
 WORKDIR /app
-RUN sudo chown -R rust:rust .
-RUN USER=root cargo new server
-WORKDIR /app/server
-COPY server/Cargo.toml server/Cargo.lock ./
-COPY server/lemmy_db ./lemmy_db
-COPY server/lemmy_utils ./lemmy_utils
-COPY server/lemmy_api_structs ./lemmy_api_structs
-COPY server/lemmy_rate_limit ./lemmy_rate_limit
-RUN mkdir -p ./src/bin \
-   && echo 'fn main() { println!("Dummy") }' > ./src/bin/main.rs
-RUN cargo build --release
-RUN find target/$CARGO_BUILD_TARGET/$RUSTRELEASEDIR -type f -name "$(echo "lemmy_server" | tr '-' '_')*" -exec touch -t 200001010000 {} +
-COPY server/src ./src/
-COPY server/migrations ./migrations/
 
-# build for release
-# workaround for https://github.com/rust-lang/rust/issues/62896
-RUN cargo build --frozen --release
+# Copy over the cached dependencies
+COPY --from=cacher /app/target target
+COPY --from=cacher /home/rust/.cargo /home/rust/.cargo
+
+# Copy the rest of the dirs
+COPY ./ ./
+
+RUN sudo chown -R rust:rust .
+RUN cargo build --release
 
 # reduce binary size
 RUN strip ./target/$CARGO_BUILD_TARGET/$RUSTRELEASEDIR/lemmy_server
 
-RUN cp ./target/$CARGO_BUILD_TARGET/$RUSTRELEASEDIR/lemmy_server /app/server/
+RUN cp ./target/$CARGO_BUILD_TARGET/$RUSTRELEASEDIR/lemmy_server /app/lemmy_server
 
-FROM $RUST_BUILDER_IMAGE as docs
-WORKDIR /app
-COPY --chown=rust:rust docs ./docs
-RUN mdbook build docs/
-
-FROM node:12-buster as node
-
-WORKDIR /app/ui
-
-# Cache deps
-COPY ui/package.json ui/yarn.lock ./
-RUN yarn install --pure-lockfile --network-timeout 600000
-
-# Build
-COPY ui /app/ui
-RUN yarn build
-
+# The alpine runner
 FROM alpine:3.12 as lemmy
 
 # Install libpq for postgres
@@ -60,10 +56,7 @@ RUN addgroup -g 1000 lemmy
 RUN adduser -D -s /bin/sh -u 1000 -G lemmy lemmy
 
 # Copy resources
-COPY --chown=lemmy:lemmy server/config/defaults.hjson /config/defaults.hjson
-COPY --chown=lemmy:lemmy --from=rust /app/server/lemmy_server /app/lemmy
-COPY --chown=lemmy:lemmy --from=docs /app/docs/book/ /app/dist/documentation/
-COPY --chown=lemmy:lemmy --from=node /app/ui/dist /app/dist
+COPY --chown=lemmy:lemmy --from=builder /app/lemmy_server /app/lemmy
 
 RUN chown lemmy:lemmy /app/lemmy
 USER lemmy
