@@ -17,6 +17,7 @@ pub struct Settings {
   pub(crate) captcha: Option<CaptchaConfig>,
   pub(crate) email: Option<EmailConfig>,
   pub(crate) setup: Option<SetupConfig>,
+  pub(crate) additional_slurs: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -27,12 +28,40 @@ pub struct CaptchaConfig {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct DatabaseConfig {
-  pub user: String,
+  pub(super) user: Option<String>,
   pub password: String,
   pub host: String,
-  pub port: i32,
-  pub database: String,
-  pub pool_size: u32,
+  pub(super) port: Option<i32>,
+  pub(super) database: Option<String>,
+  pub(super) pool_size: Option<u32>,
+}
+
+impl DatabaseConfig {
+  pub fn user(&self) -> String {
+    self
+      .user
+      .to_owned()
+      .unwrap_or_else(|| DatabaseConfig::default().user.expect("missing user"))
+  }
+  pub fn port(&self) -> i32 {
+    self
+      .port
+      .unwrap_or_else(|| DatabaseConfig::default().port.expect("missing port"))
+  }
+  pub fn database(&self) -> String {
+    self.database.to_owned().unwrap_or_else(|| {
+      DatabaseConfig::default()
+        .database
+        .expect("missing database")
+    })
+  }
+  pub fn pool_size(&self) -> u32 {
+    self.pool_size.unwrap_or_else(|| {
+      DatabaseConfig::default()
+        .pool_size
+        .expect("missing pool_size")
+    })
+  }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -49,6 +78,7 @@ pub struct FederationConfig {
   pub enabled: bool,
   pub allowed_instances: Option<Vec<String>>,
   pub blocked_instances: Option<Vec<String>>,
+  pub strict_allowlist: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

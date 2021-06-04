@@ -6,6 +6,7 @@ use lemmy_api_common::{
   check_downvotes_enabled,
   get_local_user_view_from_jwt,
   is_mod_or_admin,
+  mark_post_as_read,
   post::*,
 };
 use lemmy_apub::{ApubLikeableType, ApubObjectType};
@@ -69,16 +70,16 @@ impl Perform for CreatePostLike {
         .await?;
     }
 
+    // Mark the post as read
+    mark_post_as_read(person_id, post_id, context.pool()).await?;
+
     let post_id = data.post_id;
     let person_id = local_user_view.person.id;
-    let post_view = match blocking(context.pool(), move |conn| {
+    let post_view = blocking(context.pool(), move |conn| {
       PostView::read(conn, post_id, Some(person_id))
     })
     .await?
-    {
-      Ok(post) => post,
-      Err(_e) => return Err(ApiError::err("couldnt_find_post").into()),
-    };
+    .map_err(|_| ApiError::err("couldnt_find_post"))?;
 
     let res = PostResponse { post_view };
 
@@ -271,6 +272,9 @@ impl Perform for SavePost {
       PostView::read(conn, post_id, Some(person_id))
     })
     .await??;
+
+    // Mark the post as read
+    mark_post_as_read(person_id, post_id, context.pool()).await?;
 
     Ok(PostResponse { post_view })
   }

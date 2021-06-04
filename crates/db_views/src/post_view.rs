@@ -155,17 +155,18 @@ impl PostView {
 
 pub struct PostQueryBuilder<'a> {
   conn: &'a PgConnection,
-  listing_type: &'a ListingType,
-  sort: &'a SortType,
+  listing_type: Option<ListingType>,
+  sort: Option<SortType>,
   creator_id: Option<PersonId>,
   community_id: Option<CommunityId>,
   community_name: Option<String>,
   my_person_id: Option<PersonId>,
   search_term: Option<String>,
   url_search: Option<String>,
-  show_nsfw: bool,
-  saved_only: bool,
-  unread_only: bool,
+  show_nsfw: Option<bool>,
+  show_bot_accounts: Option<bool>,
+  show_read_posts: Option<bool>,
+  saved_only: Option<bool>,
   page: Option<i64>,
   limit: Option<i64>,
 }
@@ -174,29 +175,30 @@ impl<'a> PostQueryBuilder<'a> {
   pub fn create(conn: &'a PgConnection) -> Self {
     PostQueryBuilder {
       conn,
-      listing_type: &ListingType::All,
-      sort: &SortType::Hot,
+      listing_type: None,
+      sort: None,
       creator_id: None,
       community_id: None,
       community_name: None,
       my_person_id: None,
       search_term: None,
       url_search: None,
-      show_nsfw: true,
-      saved_only: false,
-      unread_only: false,
+      show_nsfw: None,
+      show_bot_accounts: None,
+      show_read_posts: None,
+      saved_only: None,
       page: None,
       limit: None,
     }
   }
 
-  pub fn listing_type(mut self, listing_type: &'a ListingType) -> Self {
-    self.listing_type = listing_type;
+  pub fn listing_type<T: MaybeOptional<ListingType>>(mut self, listing_type: T) -> Self {
+    self.listing_type = listing_type.get_optional();
     self
   }
 
-  pub fn sort(mut self, sort: &'a SortType) -> Self {
-    self.sort = sort;
+  pub fn sort<T: MaybeOptional<SortType>>(mut self, sort: T) -> Self {
+    self.sort = sort.get_optional();
     self
   }
 
@@ -230,13 +232,23 @@ impl<'a> PostQueryBuilder<'a> {
     self
   }
 
-  pub fn show_nsfw(mut self, show_nsfw: bool) -> Self {
-    self.show_nsfw = show_nsfw;
+  pub fn show_nsfw<T: MaybeOptional<bool>>(mut self, show_nsfw: T) -> Self {
+    self.show_nsfw = show_nsfw.get_optional();
     self
   }
 
-  pub fn saved_only(mut self, saved_only: bool) -> Self {
-    self.saved_only = saved_only;
+  pub fn show_bot_accounts<T: MaybeOptional<bool>>(mut self, show_bot_accounts: T) -> Self {
+    self.show_bot_accounts = show_bot_accounts.get_optional();
+    self
+  }
+
+  pub fn show_read_posts<T: MaybeOptional<bool>>(mut self, show_read_posts: T) -> Self {
+    self.show_read_posts = show_read_posts.get_optional();
+    self
+  }
+
+  pub fn saved_only<T: MaybeOptional<bool>>(mut self, saved_only: T) -> Self {
+    self.saved_only = saved_only.get_optional();
     self
   }
 
@@ -263,7 +275,7 @@ impl<'a> PostQueryBuilder<'a> {
         community_person_ban::table.on(
           post::community_id
             .eq(community_person_ban::community_id)
-            .and(community_person_ban::person_id.eq(community::creator_id)),
+            .and(community_person_ban::person_id.eq(post::creator_id)),
         ),
       )
       .inner_join(post_aggregates::table)
@@ -308,11 +320,13 @@ impl<'a> PostQueryBuilder<'a> {
       ))
       .into_boxed();
 
-    query = match self.listing_type {
-      ListingType::Subscribed => query.filter(community_follower::person_id.is_not_null()), // TODO could be this: and(community_follower::person_id.eq(person_id_join)),
-      ListingType::Local => query.filter(community::local.eq(true)),
-      _ => query,
-    };
+    if let Some(listing_type) = self.listing_type {
+      query = match listing_type {
+        ListingType::Subscribed => query.filter(community_follower::person_id.is_not_null()),
+        ListingType::Local => query.filter(community::local.eq(true)),
+        _ => query,
+      };
+    }
 
     if let Some(community_id) = self.community_id {
       query = query
@@ -345,22 +359,25 @@ impl<'a> PostQueryBuilder<'a> {
       query = query.filter(post::creator_id.eq(creator_id));
     }
 
-    if !self.show_nsfw {
+    if !self.show_nsfw.unwrap_or(false) {
       query = query
         .filter(post::nsfw.eq(false))
         .filter(community::nsfw.eq(false));
     };
 
-    // TODO  These two might be wrong
-    if self.saved_only {
+    if !self.show_bot_accounts.unwrap_or(true) {
+      query = query.filter(person::bot_account.eq(false));
+    };
+
+    if !self.show_read_posts.unwrap_or(true) {
+      query = query.filter(post_read::id.is_null());
+    };
+
+    if self.saved_only.unwrap_or(false) {
       query = query.filter(post_saved::id.is_not_null());
     };
 
-    if self.unread_only {
-      query = query.filter(post_read::id.is_not_null());
-    };
-
-    query = match self.sort {
+    query = match self.sort.unwrap_or(SortType::Hot) {
       SortType::Active => query
         .then_order_by(
           hot_rank(
@@ -451,6 +468,7 @@ mod tests {
     let person_name = "tegan".to_string();
     let community_name = "test_community_3".to_string();
     let post_name = "test post 3".to_string();
+    let bot_post_name = "test bot post".to_string();
 
     let new_person = PersonForm {
       name: person_name.to_owned(),
@@ -459,10 +477,17 @@ mod tests {
 
     let inserted_person = Person::create(&conn, &new_person).unwrap();
 
+    let new_bot = PersonForm {
+      name: person_name.to_owned(),
+      bot_account: Some(true),
+      ..PersonForm::default()
+    };
+
+    let inserted_bot = Person::create(&conn, &new_bot).unwrap();
+
     let new_community = CommunityForm {
       name: community_name.to_owned(),
       title: "nada".to_owned(),
-      creator_id: inserted_person.id,
       ..CommunityForm::default()
     };
 
@@ -476,6 +501,15 @@ mod tests {
     };
 
     let inserted_post = Post::create(&conn, &new_post).unwrap();
+
+    let new_bot_post = PostForm {
+      name: bot_post_name,
+      creator_id: inserted_bot.id,
+      community_id: inserted_community.id,
+      ..PostForm::default()
+    };
+
+    let _inserted_bot_post = Post::create(&conn, &new_bot_post).unwrap();
 
     let post_like_form = PostLikeForm {
       post_id: inserted_post.id,
@@ -494,16 +528,17 @@ mod tests {
     };
 
     let read_post_listings_with_person = PostQueryBuilder::create(&conn)
-      .listing_type(&ListingType::Community)
-      .sort(&SortType::New)
+      .listing_type(ListingType::Community)
+      .sort(SortType::New)
+      .show_bot_accounts(false)
       .community_id(inserted_community.id)
       .my_person_id(inserted_person.id)
       .list()
       .unwrap();
 
     let read_post_listings_no_person = PostQueryBuilder::create(&conn)
-      .listing_type(&ListingType::Community)
-      .sort(&SortType::New)
+      .listing_type(ListingType::Community)
+      .sort(SortType::New)
       .community_id(inserted_community.id)
       .list()
       .unwrap();
@@ -541,12 +576,13 @@ mod tests {
       creator: PersonSafe {
         id: inserted_person.id,
         name: person_name,
-        preferred_username: None,
+        display_name: None,
         published: inserted_person.published,
         avatar: None,
         actor_id: inserted_person.actor_id.to_owned(),
         local: true,
         admin: false,
+        bot_account: false,
         banned: false,
         deleted: false,
         bio: None,
@@ -568,7 +604,6 @@ mod tests {
         local: true,
         title: "nada".to_owned(),
         description: None,
-        creator_id: inserted_person.id,
         updated: None,
         banner: None,
         published: inserted_community.published,
@@ -598,6 +633,7 @@ mod tests {
     let num_deleted = Post::delete(&conn, inserted_post.id).unwrap();
     Community::delete(&conn, inserted_community.id).unwrap();
     Person::delete(&conn, inserted_person.id).unwrap();
+    Person::delete(&conn, inserted_bot.id).unwrap();
 
     // The with user
     assert_eq!(
@@ -608,18 +644,20 @@ mod tests {
       expected_post_listing_with_user,
       read_post_listing_with_person
     );
+
+    // Should be only one person, IE the bot post should be missing
     assert_eq!(1, read_post_listings_with_person.len());
 
     // Without the user
     assert_eq!(
       expected_post_listing_no_person,
-      read_post_listings_no_person[0]
+      read_post_listings_no_person[1]
     );
     assert_eq!(expected_post_listing_no_person, read_post_listing_no_person);
-    assert_eq!(1, read_post_listings_no_person.len());
 
-    // assert_eq!(expected_post, inserted_post);
-    // assert_eq!(expected_post, updated_post);
+    // Should be 2 posts, with the bot post
+    assert_eq!(2, read_post_listings_no_person.len());
+
     assert_eq!(expected_post_like, inserted_post_like);
     assert_eq!(1, like_removed);
     assert_eq!(1, num_deleted);

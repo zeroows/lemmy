@@ -1,4 +1,4 @@
-ARG RUST_BUILDER_IMAGE=rust:1.50-slim-buster
+ARG RUST_BUILDER_IMAGE=rust:1.51.0-slim-buster
 
 # Build Lemmy
 FROM $RUST_BUILDER_IMAGE as builder
@@ -11,6 +11,7 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY ./ ./
+RUN echo "pub const VERSION: &str = \"$(git describe --tag)\";" > "crates/utils/src/version.rs"
 
 RUN cargo build --release
 
@@ -22,9 +23,9 @@ RUN cp ./target/release/lemmy_server /app/lemmy_server
 # The Debian runner
 FROM debian:buster-slim as lemmy
 
-# Install libpq for postgres and espeak for captchas
+# Install libpq for postgres
 RUN apt-get update \
- && apt-get -y install --no-install-recommends espeak postgresql-client libc6 libssl1.1 \
+ && apt-get -y install --no-install-recommends postgresql-client libc6 libssl1.1 \
  && rm -rf /var/lib/apt/lists/*
 
 RUN addgroup --gid 1000 lemmy

@@ -14,6 +14,7 @@ use lemmy_db_queries::{
   },
   Crud,
   DbPool,
+  Readable,
 };
 use lemmy_db_schema::{
   source::{
@@ -21,7 +22,7 @@ use lemmy_db_schema::{
     community::{Community, CommunityModerator},
     person::Person,
     person_mention::{PersonMention, PersonMentionForm},
-    post::Post,
+    post::{Post, PostRead, PostReadForm},
     site::Site,
   },
   CommunityId,
@@ -237,20 +238,32 @@ pub fn is_admin(local_user_view: &LocalUserView) -> Result<(), LemmyError> {
 }
 
 pub async fn get_post(post_id: PostId, pool: &DbPool) -> Result<Post, LemmyError> {
-  match blocking(pool, move |conn| Post::read(conn, post_id)).await? {
-    Ok(post) => Ok(post),
-    Err(_e) => Err(ApiError::err("couldnt_find_post").into()),
-  }
+  blocking(pool, move |conn| Post::read(conn, post_id))
+    .await?
+    .map_err(|_| ApiError::err("couldnt_find_post").into())
+}
+
+pub async fn mark_post_as_read(
+  person_id: PersonId,
+  post_id: PostId,
+  pool: &DbPool,
+) -> Result<PostRead, LemmyError> {
+  let post_read_form = PostReadForm { post_id, person_id };
+
+  blocking(pool, move |conn| {
+    PostRead::mark_as_read(conn, &post_read_form)
+  })
+  .await?
+  .map_err(|_| ApiError::err("couldnt_mark_post_as_read").into())
 }
 
 pub async fn get_local_user_view_from_jwt(
   jwt: &str,
   pool: &DbPool,
 ) -> Result<LocalUserView, LemmyError> {
-  let claims = match Claims::decode(&jwt) {
-    Ok(claims) => claims.claims,
-    Err(_e) => return Err(ApiError::err("not_logged_in").into()),
-  };
+  let claims = Claims::decode(&jwt)
+    .map_err(|_| ApiError::err("not_logged_in"))?
+    .claims;
   let local_user_id = LocalUserId(claims.sub);
   let local_user_view =
     blocking(pool, move |conn| LocalUserView::read(conn, local_user_id)).await??;
@@ -291,10 +304,9 @@ pub async fn get_local_user_settings_view_from_jwt(
   jwt: &str,
   pool: &DbPool,
 ) -> Result<LocalUserSettingsView, LemmyError> {
-  let claims = match Claims::decode(&jwt) {
-    Ok(claims) => claims.claims,
-    Err(_e) => return Err(ApiError::err("not_logged_in").into()),
-  };
+  let claims = Claims::decode(&jwt)
+    .map_err(|_| ApiError::err("not_logged_in"))?
+    .claims;
   let local_user_id = LocalUserId(claims.sub);
   let local_user_view = blocking(pool, move |conn| {
     LocalUserSettingsView::read(conn, local_user_id)
@@ -414,6 +426,15 @@ pub async fn build_federated_instances(
 pub fn password_length_check(pass: &str) -> Result<(), LemmyError> {
   if pass.len() > 60 {
     Err(ApiError::err("invalid_password").into())
+  } else {
+    Ok(())
+  }
+}
+
+/// Checks the site description length
+pub fn site_description_length_check(description: &str) -> Result<(), LemmyError> {
+  if description.len() > 150 {
+    Err(ApiError::err("site_description_length_overflow").into())
   } else {
     Ok(())
   }

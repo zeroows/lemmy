@@ -111,16 +111,11 @@ impl PerformCrud for Register {
     };
 
     // insert the person
-    let inserted_person = match blocking(context.pool(), move |conn| {
+    let inserted_person = blocking(context.pool(), move |conn| {
       Person::create(conn, &person_form)
     })
     .await?
-    {
-      Ok(u) => u,
-      Err(_) => {
-        return Err(ApiError::err("user_already_exists").into());
-      }
-    };
+    .map_err(|_| ApiError::err("user_already_exists"))?;
 
     // Create the local user
     let local_user_form = LocalUserForm {
@@ -128,11 +123,14 @@ impl PerformCrud for Register {
       email: Some(data.email.to_owned()),
       password_encrypted: data.password.to_owned(),
       show_nsfw: Some(data.show_nsfw),
+      show_bot_accounts: Some(true),
       theme: Some("browser".into()),
       default_sort_type: Some(SortType::Active as i16),
       default_listing_type: Some(ListingType::Subscribed as i16),
       lang: Some("browser".into()),
       show_avatars: Some(true),
+      show_scores: Some(true),
+      show_read_posts: Some(true),
       send_notifications_to_email: Some(false),
     };
 
@@ -177,7 +175,6 @@ impl PerformCrud for Register {
           name: default_community_name.to_string(),
           title: "The Default Community".to_string(),
           description: Some("The Default Community".to_string()),
-          creator_id: inserted_person.id,
           actor_id: Some(actor_id.to_owned()),
           private_key: Some(main_community_keypair.private_key),
           public_key: Some(main_community_keypair.public_key),

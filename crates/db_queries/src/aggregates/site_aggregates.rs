@@ -49,21 +49,22 @@ mod tests {
 
     let site_form = SiteForm {
       name: "test_site".into(),
+      creator_id: inserted_person.id,
+      sidebar: None,
       description: None,
       icon: None,
       banner: None,
-      creator_id: inserted_person.id,
-      enable_downvotes: true,
-      open_registration: true,
-      enable_nsfw: true,
+      enable_downvotes: None,
+      open_registration: None,
+      enable_nsfw: None,
       updated: None,
+      community_creation_admin_only: Some(false),
     };
 
     Site::create(&conn, &site_form).unwrap();
 
     let new_community = CommunityForm {
       name: "TIL_site_agg".into(),
-      creator_id: inserted_person.id,
       title: "nada".to_owned(),
       ..CommunityForm::default()
     };
@@ -117,6 +118,10 @@ mod tests {
     // This shouuld delete all the associated rows, and fire triggers
     let person_num_deleted = Person::delete(&conn, inserted_person.id).unwrap();
     assert_eq!(1, person_num_deleted);
+
+    // Delete the community
+    let community_num_deleted = Community::delete(&conn, inserted_community.id).unwrap();
+    assert_eq!(1, community_num_deleted);
 
     let after_delete = SiteAggregates::read(&conn);
     assert!(after_delete.is_err());

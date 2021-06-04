@@ -18,15 +18,16 @@ use lemmy_db_views_moderator::{
   mod_sticky_post_view::ModStickyPostView,
 };
 use serde::{Deserialize, Serialize};
-use url::Url;
 
 #[derive(Deserialize, Debug)]
 pub struct Search {
   pub q: String,
-  pub type_: String,
   pub community_id: Option<CommunityId>,
   pub community_name: Option<String>,
-  pub sort: String,
+  pub creator_id: Option<PersonId>,
+  pub type_: Option<String>,
+  pub sort: Option<String>,
+  pub listing_type: Option<String>,
   pub page: Option<i64>,
   pub limit: Option<i64>,
   pub auth: Option<String>,
@@ -65,24 +66,28 @@ pub struct GetModlogResponse {
 #[derive(Deserialize)]
 pub struct CreateSite {
   pub name: String,
+  pub sidebar: Option<String>,
   pub description: Option<String>,
-  pub icon: Option<Url>,
-  pub banner: Option<Url>,
-  pub enable_downvotes: bool,
-  pub open_registration: bool,
-  pub enable_nsfw: bool,
+  pub icon: Option<String>,
+  pub banner: Option<String>,
+  pub enable_downvotes: Option<bool>,
+  pub open_registration: Option<bool>,
+  pub enable_nsfw: Option<bool>,
+  pub community_creation_admin_only: Option<bool>,
   pub auth: String,
 }
 
 #[derive(Deserialize)]
 pub struct EditSite {
-  pub name: String,
+  pub name: Option<String>,
+  pub sidebar: Option<String>,
   pub description: Option<String>,
   pub icon: Option<String>,
   pub banner: Option<String>,
-  pub enable_downvotes: bool,
-  pub open_registration: bool,
-  pub enable_nsfw: bool,
+  pub enable_downvotes: Option<bool>,
+  pub open_registration: Option<bool>,
+  pub enable_nsfw: Option<bool>,
+  pub community_creation_admin_only: Option<bool>,
   pub auth: String,
 }
 

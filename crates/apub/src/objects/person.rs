@@ -10,11 +10,12 @@ use crate::{
   },
   ActorType,
   PersonExt,
+  UserTypes,
 };
 use activitystreams::{
-  actor::{ApActor, Endpoints, Person},
-  object::{ApObject, Image, Tombstone},
-  prelude::*,
+  actor::{Actor, ApActor, ApActorExt, Endpoints},
+  base::{BaseExt, ExtendsExt},
+  object::{ApObject, Image, Object, ObjectExt, Tombstone},
 };
 use activitystreams_ext::Ext2;
 use anyhow::Context;
@@ -38,7 +39,16 @@ impl ToApub for DbPerson {
   type ApubType = PersonExt;
 
   async fn to_apub(&self, _pool: &DbPool) -> Result<PersonExt, LemmyError> {
-    let mut person = ApObject::new(Person::new());
+    let object = Object::<UserTypes>::new_none_type();
+    let mut actor = Actor(object);
+    let kind = if self.bot_account {
+      UserTypes::Service
+    } else {
+      UserTypes::Person
+    };
+    actor.set_kind(kind);
+    let mut person = ApObject::new(actor);
+
     person
       .set_many_contexts(lemmy_context()?)
       .set_id(self.actor_id.to_owned().into_inner())
@@ -64,7 +74,8 @@ impl ToApub for DbPerson {
       set_content_and_source(&mut person, bio)?;
     }
 
-    if let Some(i) = self.preferred_username.to_owned() {
+    // In apub, the "name" is a display name
+    if let Some(i) = self.display_name.to_owned() {
       person.set_name(i);
     }
 
@@ -161,7 +172,7 @@ impl FromApubToForm<PersonExt> for PersonForm {
       .preferred_username()
       .context(location_info!())?
       .to_string();
-    let preferred_username: Option<String> = person
+    let display_name: Option<String> = person
       .name()
       .map(|n| n.one())
       .flatten()
@@ -176,22 +187,23 @@ impl FromApubToForm<PersonExt> for PersonForm {
       .map(|s| s.to_owned().into());
 
     check_slurs(&name)?;
-    check_slurs_opt(&preferred_username)?;
+    check_slurs_opt(&display_name)?;
     check_slurs_opt(&bio)?;
 
     Ok(PersonForm {
       name,
-      preferred_username: Some(preferred_username),
+      display_name: Some(display_name),
       banned: None,
       deleted: None,
       avatar: avatar.map(|o| o.map(|i| i.into())),
       banner: banner.map(|o| o.map(|i| i.into())),
       published: person.inner.published().map(|u| u.to_owned().naive_local()),
       updated: person.updated().map(|u| u.to_owned().naive_local()),
-      actor_id: Some(check_object_domain(person, expected_domain)?),
+      actor_id: Some(check_object_domain(person, expected_domain, false)?),
       bio: Some(bio),
       local: Some(false),
       admin: Some(false),
+      bot_account: Some(person.inner.is_kind(&UserTypes::Service)),
       private_key: None,
       public_key: Some(Some(person.ext_two.public_key.to_owned().public_key_pem)),
       last_refreshed_at: Some(naive_now()),

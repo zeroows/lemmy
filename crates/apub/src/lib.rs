@@ -7,11 +7,14 @@ pub mod extensions;
 pub mod fetcher;
 pub mod objects;
 
-use crate::extensions::{
-  group_extension::GroupExtension,
-  page_extension::PageExtension,
-  person_extension::PersonExtension,
-  signatures::{PublicKey, PublicKeyExtension},
+use crate::{
+  extensions::{
+    group_extension::GroupExtension,
+    page_extension::PageExtension,
+    person_extension::PersonExtension,
+    signatures::{PublicKey, PublicKeyExtension},
+  },
+  fetcher::community::get_or_fetch_and_upsert_community,
 };
 use activitystreams::{
   activity::Follow,
@@ -44,12 +47,20 @@ use std::net::IpAddr;
 use url::{ParseError, Url};
 
 /// Activitystreams type for community
-type GroupExt = Ext2<actor::ApActor<ApObject<actor::Group>>, GroupExtension, PublicKeyExtension>;
+pub type GroupExt =
+  Ext2<actor::ApActor<ApObject<actor::Group>>, GroupExtension, PublicKeyExtension>;
 /// Activitystreams type for person
-type PersonExt = Ext2<actor::ApActor<ApObject<actor::Person>>, PersonExtension, PublicKeyExtension>;
+type PersonExt =
+  Ext2<actor::ApActor<ApObject<actor::Actor<UserTypes>>>, PersonExtension, PublicKeyExtension>;
 /// Activitystreams type for post
 pub type PageExt = Ext1<ApObject<Page>, PageExtension>;
 pub type NoteExt = ApObject<Note>;
+
+#[derive(Clone, Copy, Debug, serde::Deserialize, serde::Serialize, PartialEq)]
+pub enum UserTypes {
+  Person,
+  Service,
+}
 
 pub static APUB_JSON_CONTENT_TYPE: &str = "application/activity+json";
 
@@ -61,8 +72,7 @@ pub static APUB_JSON_CONTENT_TYPE: &str = "application/activity+json";
 /// - URL being in the allowlist (if it is active)
 /// - URL not being in the blocklist (if it is active)
 ///
-/// Note that only one of allowlist and blacklist can be enabled, not both.
-pub fn check_is_apub_id_valid(apub_id: &Url) -> Result<(), LemmyError> {
+pub fn check_is_apub_id_valid(apub_id: &Url, use_strict_allowlist: bool) -> Result<(), LemmyError> {
   let settings = Settings::get();
   let domain = apub_id.domain().context(location_info!())?.to_string();
   let local_instance = settings.get_hostname_without_port()?;
@@ -91,30 +101,33 @@ pub fn check_is_apub_id_valid(apub_id: &Url) -> Result<(), LemmyError> {
     return Err(anyhow!("invalid apub id scheme {}: {}", apub_id.scheme(), apub_id).into());
   }
 
-  let allowed_instances = Settings::get().get_allowed_instances();
-  let blocked_instances = Settings::get().get_blocked_instances();
-
-  if allowed_instances.is_none() && blocked_instances.is_none() {
-    Ok(())
-  } else if let Some(mut allowed) = allowed_instances {
-    // need to allow this explicitly because apub receive might contain objects from our local
-    // instance. split is needed to remove the port in our federation test setup.
-    allowed.push(local_instance);
-
-    if allowed.contains(&domain) {
-      Ok(())
-    } else {
-      Err(anyhow!("{} not in federation allowlist", domain).into())
-    }
-  } else if let Some(blocked) = blocked_instances {
+  // TODO: might be good to put the part above in one method, and below in another
+  //       (which only gets called in apub::objects)
+  //        -> no that doesnt make sense, we still need the code below for blocklist and strict allowlist
+  if let Some(blocked) = Settings::get().get_blocked_instances() {
     if blocked.contains(&domain) {
-      Err(anyhow!("{} is in federation blocklist", domain).into())
-    } else {
-      Ok(())
+      return Err(anyhow!("{} is in federation blocklist", domain).into());
     }
-  } else {
-    panic!("Invalid config, both allowed_instances and blocked_instances are specified");
   }
+
+  if let Some(mut allowed) = Settings::get().get_allowed_instances() {
+    // Only check allowlist if this is a community, or strict allowlist is enabled.
+    let strict_allowlist = Settings::get()
+      .federation()
+      .strict_allowlist
+      .unwrap_or(true);
+    if use_strict_allowlist || strict_allowlist {
+      // need to allow this explicitly because apub receive might contain objects from our local
+      // instance.
+      allowed.push(local_instance);
+
+      if !allowed.contains(&domain) {
+        return Err(anyhow!("{} not in federation allowlist", domain).into());
+      }
+    }
+  }
+
+  Ok(())
 }
 
 /// Common functions for ActivityPub objects, which are implemented by most (but not all) objects
@@ -171,9 +184,11 @@ pub trait ActorType {
   /// Outbox URL is not generally used by Lemmy, so it can be generated on the fly (but only for
   /// local actors).
   fn get_outbox_url(&self) -> Result<Url, LemmyError> {
+    /* TODO
     if !self.is_local() {
       return Err(anyhow!("get_outbox_url() called for remote actor").into());
     }
+    */
     Ok(Url::parse(&format!("{}/outbox", &self.actor_id()))?)
   }
 
@@ -191,6 +206,7 @@ pub trait ActorType {
 
 #[async_trait::async_trait(?Send)]
 pub trait CommunityType {
+  fn followers_url(&self) -> Url;
   async fn get_follower_inboxes(&self, pool: &DbPool) -> Result<Vec<Url>, LemmyError>;
   async fn send_accept_follow(
     &self,
@@ -198,8 +214,9 @@ pub trait CommunityType {
     context: &LemmyContext,
   ) -> Result<(), LemmyError>;
 
-  async fn send_delete(&self, context: &LemmyContext) -> Result<(), LemmyError>;
-  async fn send_undo_delete(&self, context: &LemmyContext) -> Result<(), LemmyError>;
+  async fn send_update(&self, mod_: Person, context: &LemmyContext) -> Result<(), LemmyError>;
+  async fn send_delete(&self, mod_: Person, context: &LemmyContext) -> Result<(), LemmyError>;
+  async fn send_undo_delete(&self, mod_: Person, context: &LemmyContext) -> Result<(), LemmyError>;
 
   async fn send_remove(&self, context: &LemmyContext) -> Result<(), LemmyError>;
   async fn send_undo_remove(&self, context: &LemmyContext) -> Result<(), LemmyError>;
@@ -207,6 +224,7 @@ pub trait CommunityType {
   async fn send_announce(
     &self,
     activity: AnyBase,
+    object: Option<Url>,
     context: &LemmyContext,
   ) -> Result<(), LemmyError>;
 
@@ -220,6 +238,19 @@ pub trait CommunityType {
     &self,
     actor: &Person,
     removed_mod: Person,
+    context: &LemmyContext,
+  ) -> Result<(), LemmyError>;
+
+  async fn send_block_user(
+    &self,
+    actor: &Person,
+    blocked_user: Person,
+    context: &LemmyContext,
+  ) -> Result<(), LemmyError>;
+  async fn send_undo_block_user(
+    &self,
+    actor: &Person,
+    blocked_user: Person,
     context: &LemmyContext,
   ) -> Result<(), LemmyError>;
 }
@@ -351,7 +382,7 @@ pub async fn find_post_or_comment_by_id(
 }
 
 #[derive(Debug)]
-pub(crate) enum Object {
+pub enum Object {
   Comment(Box<Comment>),
   Post(Box<Post>),
   Community(Box<Community>),
@@ -359,10 +390,7 @@ pub(crate) enum Object {
   PrivateMessage(Box<PrivateMessage>),
 }
 
-pub(crate) async fn find_object_by_id(
-  context: &LemmyContext,
-  apub_id: Url,
-) -> Result<Object, LemmyError> {
+pub async fn find_object_by_id(context: &LemmyContext, apub_id: Url) -> Result<Object, LemmyError> {
   let ap_id = apub_id.clone();
   if let Ok(pc) = find_post_or_comment_by_id(context, ap_id.to_owned()).await {
     return Ok(match pc {
@@ -444,4 +472,21 @@ where
     to_and_cc.append(&mut cc);
   }
   to_and_cc
+}
+
+pub async fn get_community_from_to_or_cc<T, Kind>(
+  activity: &T,
+  context: &LemmyContext,
+  request_counter: &mut i32,
+) -> Result<Community, LemmyError>
+where
+  T: AsObject<Kind>,
+{
+  for cid in get_activity_to_and_cc(activity) {
+    let community = get_or_fetch_and_upsert_community(&cid, context, request_counter).await;
+    if community.is_ok() {
+      return community;
+    }
+  }
+  Err(NotFound.into())
 }

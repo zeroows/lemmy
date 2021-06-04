@@ -1,4 +1,4 @@
-ARG RUST_BUILDER_IMAGE=ekidd/rust-musl-builder:1.50.0
+ARG RUST_BUILDER_IMAGE=ekidd/rust-musl-builder:1.51.0
 
 # Cargo chef plan
 FROM $RUST_BUILDER_IMAGE as planner
@@ -36,6 +36,7 @@ COPY --from=cacher /home/rust/.cargo /home/rust/.cargo
 COPY ./ ./
 
 RUN sudo chown -R rust:rust .
+RUN echo "pub const VERSION: &str = \"$(git describe --tag)\";" > "crates/utils/src/version.rs"
 RUN cargo build
 
 # reduce binary size
@@ -48,9 +49,6 @@ FROM alpine:3.12 as lemmy
 
 # Install libpq for postgres
 RUN apk add libpq
-
-# Install Espeak for captchas
-RUN apk add espeak
 
 RUN addgroup -g 1000 lemmy
 RUN adduser -D -s /bin/sh -u 1000 -G lemmy lemmy

@@ -243,6 +243,9 @@ impl Readable<PostReadForm> for PostRead {
     use lemmy_db_schema::schema::post_read::dsl::*;
     insert_into(post_read)
       .values(post_read_form)
+      .on_conflict((post_id, person_id))
+      .do_update()
+      .set(post_read_form)
       .get_result::<Self>(conn)
   }
 
@@ -281,7 +284,6 @@ mod tests {
     let new_community = CommunityForm {
       name: "test community_3".to_string(),
       title: "nada".to_owned(),
-      creator_id: inserted_person.id,
       ..CommunityForm::default()
     };
 

@@ -1,4 +1,4 @@
-use crate::{captcha_espeak_wav_base64, Perform};
+use crate::{captcha_as_wav_base64, Perform};
 use actix_web::web::Data;
 use anyhow::Context;
 use bcrypt::verify;
@@ -16,9 +16,9 @@ use lemmy_api_common::{
 use lemmy_db_queries::{
   diesel_option_overwrite,
   diesel_option_overwrite_to_url,
+  from_opt_str_to_opt_enum,
   source::{
     comment::Comment_,
-    community::Community_,
     local_user::LocalUser_,
     password_reset_request::PasswordResetRequest_,
     person::Person_,
@@ -33,7 +33,6 @@ use lemmy_db_schema::{
   naive_now,
   source::{
     comment::Comment,
-    community::*,
     local_user::{LocalUser, LocalUserForm},
     moderator::*,
     password_reset_request::*,
@@ -60,7 +59,7 @@ use lemmy_utils::{
   email::send_email,
   location_info,
   settings::structs::Settings,
-  utils::{generate_random_string, is_valid_preferred_username, naive_from_unix},
+  utils::{generate_random_string, is_valid_display_name, is_valid_matrix_id, naive_from_unix},
   ApiError,
   ConnectionId,
   LemmyError,
@@ -70,7 +69,6 @@ use lemmy_websocket::{
   LemmyContext,
   UserOperation,
 };
-use std::str::FromStr;
 
 #[async_trait::async_trait(?Send)]
 impl Perform for Login {
@@ -85,14 +83,11 @@ impl Perform for Login {
 
     // Fetch that username / email
     let username_or_email = data.username_or_email.clone();
-    let local_user_view = match blocking(context.pool(), move |conn| {
+    let local_user_view = blocking(context.pool(), move |conn| {
       LocalUserView::find_by_email_or_name(conn, &username_or_email)
     })
     .await?
-    {
-      Ok(uv) => uv,
-      Err(_e) => return Err(ApiError::err("couldnt_find_that_username_or_email").into()),
-    };
+    .map_err(|_| ApiError::err("couldnt_find_that_username_or_email"))?;
 
     // Verify the password
     let valid: bool = verify(
@@ -135,13 +130,11 @@ impl Perform for GetCaptcha {
 
     let answer = captcha.chars_as_string();
 
-    let png_byte_array = captcha.as_png().expect("failed to generate captcha");
-
-    let png = base64::encode(png_byte_array);
+    let png = captcha.as_base64().expect("failed to generate captcha");
 
     let uuid = uuid::Uuid::new_v4().to_string();
 
-    let wav = captcha_espeak_wav_base64(&answer).ok();
+    let wav = captcha_as_wav_base64(&captcha);
 
     let captcha_item = CaptchaItem {
       answer,
@@ -174,8 +167,9 @@ impl Perform for SaveUserSettings {
     let banner = diesel_option_overwrite_to_url(&data.banner)?;
     let email = diesel_option_overwrite(&data.email);
     let bio = diesel_option_overwrite(&data.bio);
-    let preferred_username = diesel_option_overwrite(&data.preferred_username);
+    let display_name = diesel_option_overwrite(&data.display_name);
     let matrix_user_id = diesel_option_overwrite(&data.matrix_user_id);
+    let bot_account = data.bot_account;
 
     if let Some(Some(bio)) = &bio {
       if bio.chars().count() > 300 {
@@ -183,59 +177,30 @@ impl Perform for SaveUserSettings {
       }
     }
 
-    if let Some(Some(preferred_username)) = &preferred_username {
-      if !is_valid_preferred_username(preferred_username.trim()) {
+    if let Some(Some(display_name)) = &display_name {
+      if !is_valid_display_name(display_name.trim()) {
         return Err(ApiError::err("invalid_username").into());
+      }
+    }
+
+    if let Some(Some(matrix_user_id)) = &matrix_user_id {
+      if !is_valid_matrix_id(matrix_user_id) {
+        return Err(ApiError::err("invalid_matrix_id").into());
       }
     }
 
     let local_user_id = local_user_view.local_user.id;
     let person_id = local_user_view.person.id;
-    let password_encrypted = match &data.new_password {
-      Some(new_password) => {
-        match &data.new_password_verify {
-          Some(new_password_verify) => {
-            password_length_check(&new_password)?;
-
-            // Make sure passwords match
-            if new_password != new_password_verify {
-              return Err(ApiError::err("passwords_dont_match").into());
-            }
-
-            // Check the old password
-            match &data.old_password {
-              Some(old_password) => {
-                let valid: bool =
-                  verify(old_password, &local_user_view.local_user.password_encrypted)
-                    .unwrap_or(false);
-                if !valid {
-                  return Err(ApiError::err("password_incorrect").into());
-                }
-                let new_password = new_password.to_owned();
-                let user = blocking(context.pool(), move |conn| {
-                  LocalUser::update_password(conn, local_user_id, &new_password)
-                })
-                .await??;
-                user.password_encrypted
-              }
-              None => return Err(ApiError::err("password_incorrect").into()),
-            }
-          }
-          None => return Err(ApiError::err("passwords_dont_match").into()),
-        }
-      }
-      None => local_user_view.local_user.password_encrypted,
-    };
-
     let default_listing_type = data.default_listing_type;
     let default_sort_type = data.default_sort_type;
+    let password_encrypted = local_user_view.local_user.password_encrypted;
 
     let person_form = PersonForm {
       name: local_user_view.person.name,
       avatar,
       banner,
       inbox_url: None,
-      preferred_username,
+      display_name,
       published: None,
       updated: Some(naive_now()),
       banned: None,
@@ -249,6 +214,7 @@ impl Perform for SaveUserSettings {
       last_refreshed_at: None,
       shared_inbox_url: None,
       matrix_user_id,
+      bot_account,
     };
 
     let person_res = blocking(context.pool(), move |conn| {
@@ -267,11 +233,14 @@ impl Perform for SaveUserSettings {
       email,
       password_encrypted,
       show_nsfw: data.show_nsfw,
+      show_bot_accounts: data.show_bot_accounts,
+      show_scores: data.show_scores,
       theme: data.theme.to_owned(),
       default_sort_type,
       default_listing_type,
       lang: data.lang.to_owned(),
       show_avatars: data.show_avatars,
+      show_read_posts: data.show_read_posts,
       send_notifications_to_email: data.send_notifications_to_email,
     };
 
@@ -293,6 +262,49 @@ impl Perform for SaveUserSettings {
         return Err(ApiError::err(err_type).into());
       }
     };
+
+    // Return the jwt
+    Ok(LoginResponse {
+      jwt: Claims::jwt(updated_local_user.id.0)?,
+    })
+  }
+}
+
+#[async_trait::async_trait(?Send)]
+impl Perform for ChangePassword {
+  type Response = LoginResponse;
+
+  async fn perform(
+    &self,
+    context: &Data<LemmyContext>,
+    _websocket_id: Option<ConnectionId>,
+  ) -> Result<LoginResponse, LemmyError> {
+    let data: &ChangePassword = &self;
+    let local_user_view = get_local_user_view_from_jwt(&data.auth, context.pool()).await?;
+
+    password_length_check(&data.new_password)?;
+
+    // Make sure passwords match
+    if data.new_password != data.new_password_verify {
+      return Err(ApiError::err("passwords_dont_match").into());
+    }
+
+    // Check the old password
+    let valid: bool = verify(
+      &data.old_password,
+      &local_user_view.local_user.password_encrypted,
+    )
+    .unwrap_or(false);
+    if !valid {
+      return Err(ApiError::err("password_incorrect").into());
+    }
+
+    let local_user_id = local_user_view.local_user.id;
+    let new_password = data.new_password.to_owned();
+    let updated_local_user = blocking(context.pool(), move |conn| {
+      LocalUser::update_password(conn, local_user_id, &new_password)
+    })
+    .await??;
 
     // Return the jwt
     Ok(LoginResponse {
@@ -386,7 +398,7 @@ impl Perform for BanPerson {
     }
 
     // Remove their data if that's desired
-    if data.remove_data {
+    if data.remove_data.unwrap_or(false) {
       // Posts
       blocking(context.pool(), move |conn: &'_ _| {
         Post::update_removed_for_creator(conn, banned_person_id, None, true)
@@ -394,10 +406,9 @@ impl Perform for BanPerson {
       .await??;
 
       // Communities
-      blocking(context.pool(), move |conn: &'_ _| {
-        Community::update_removed_for_creator(conn, banned_person_id, true)
-      })
-      .await??;
+      // Remove all communities where they're the top mod
+      // TODO couldn't get group by's working in diesel,
+      // for now, remove the communities manually
 
       // Comments
       blocking(context.pool(), move |conn: &'_ _| {
@@ -452,17 +463,20 @@ impl Perform for GetReplies {
     let data: &GetReplies = &self;
     let local_user_view = get_local_user_view_from_jwt(&data.auth, context.pool()).await?;
 
-    let sort = SortType::from_str(&data.sort)?;
+    let sort: Option<SortType> = from_opt_str_to_opt_enum(&data.sort);
 
     let page = data.page;
     let limit = data.limit;
     let unread_only = data.unread_only;
     let person_id = local_user_view.person.id;
+    let show_bot_accounts = local_user_view.local_user.show_bot_accounts;
+
     let replies = blocking(context.pool(), move |conn| {
       CommentQueryBuilder::create(conn)
-        .sort(&sort)
+        .sort(sort)
         .unread_only(unread_only)
         .recipient_id(person_id)
+        .show_bot_accounts(show_bot_accounts)
         .my_person_id(person_id)
         .page(page)
         .limit(limit)
@@ -486,7 +500,7 @@ impl Perform for GetPersonMentions {
     let data: &GetPersonMentions = &self;
     let local_user_view = get_local_user_view_from_jwt(&data.auth, context.pool()).await?;
 
-    let sort = SortType::from_str(&data.sort)?;
+    let sort: Option<SortType> = from_opt_str_to_opt_enum(&data.sort);
 
     let page = data.page;
     let limit = data.limit;
@@ -496,7 +510,7 @@ impl Perform for GetPersonMentions {
       PersonMentionQueryBuilder::create(conn)
         .recipient_id(person_id)
         .my_person_id(person_id)
-        .sort(&sort)
+        .sort(sort)
         .unread_only(unread_only)
         .page(page)
         .limit(limit)
@@ -619,14 +633,11 @@ impl Perform for PasswordReset {
 
     // Fetch that email
     let email = data.email.clone();
-    let local_user_view = match blocking(context.pool(), move |conn| {
+    let local_user_view = blocking(context.pool(), move |conn| {
       LocalUserView::find_by_email(conn, &email)
     })
     .await?
-    {
-      Ok(lu) => lu,
-      Err(_e) => return Err(ApiError::err("couldnt_find_that_username_or_email").into()),
-    };
+    .map_err(|_| ApiError::err("couldnt_find_that_username_or_email"))?;
 
     // Generate a random token
     let token = generate_random_string();
@@ -645,10 +656,8 @@ impl Perform for PasswordReset {
     let subject = &format!("Password reset for {}", local_user_view.person.name);
     let hostname = &Settings::get().get_protocol_and_hostname();
     let html = &format!("<h1>Password Reset Request for {}</h1><br><a href={}/password_change/{}>Click here to reset your password</a>", local_user_view.person.name, hostname, &token);
-    match send_email(subject, email, &local_user_view.person.name, html) {
-      Ok(_o) => _o,
-      Err(_e) => return Err(ApiError::err(&_e).into()),
-    };
+    send_email(subject, email, &local_user_view.person.name, html)
+      .map_err(|e| ApiError::err(&e))?;
 
     Ok(PasswordResetResponse {})
   }
@@ -681,14 +690,11 @@ impl Perform for PasswordChange {
 
     // Update the user with the new password
     let password = data.password.clone();
-    let updated_local_user = match blocking(context.pool(), move |conn| {
+    let updated_local_user = blocking(context.pool(), move |conn| {
       LocalUser::update_password(conn, local_user_id, &password)
     })
     .await?
-    {
-      Ok(u) => u,
-      Err(_e) => return Err(ApiError::err("couldnt_update_user").into()),
-    };
+    .map_err(|_| ApiError::err("couldnt_update_user"))?;
 
     // Return the jwt
     Ok(LoginResponse {
@@ -766,14 +772,11 @@ impl Perform for GetFollowedCommunities {
     let local_user_view = get_local_user_view_from_jwt(&data.auth, context.pool()).await?;
 
     let person_id = local_user_view.person.id;
-    let communities = match blocking(context.pool(), move |conn| {
+    let communities = blocking(context.pool(), move |conn| {
       CommunityFollowerView::for_person(conn, person_id)
     })
     .await?
-    {
-      Ok(communities) => communities,
-      _ => return Err(ApiError::err("system_err_login").into()),
-    };
+    .map_err(|_| ApiError::err("system_err_login"))?;
 
     // Return the jwt
     Ok(GetFollowedCommunitiesResponse { communities })

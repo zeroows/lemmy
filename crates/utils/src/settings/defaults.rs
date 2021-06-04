@@ -17,6 +17,7 @@ impl Default for Settings {
       jwt_secret: Some("changeme".into()),
       pictrs_url: Some("http://pictrs:8080".into()),
       iframely_url: Some("http://iframely".into()),
+      additional_slurs: None,
     }
   }
 }
@@ -24,12 +25,12 @@ impl Default for Settings {
 impl Default for DatabaseConfig {
   fn default() -> Self {
     Self {
-      user: "lemmy".into(),
+      user: Some("lemmy".to_string()),
       password: "password".into(),
       host: "localhost".into(),
-      port: 5432,
-      database: "lemmy".into(),
-      pool_size: 5,
+      port: Some(5432),
+      database: Some("lemmy".to_string()),
+      pool_size: Some(5),
     }
   }
 }
@@ -49,6 +50,7 @@ impl Default for FederationConfig {
       enabled: false,
       allowed_instances: None,
       blocked_instances: None,
+      strict_allowlist: Some(true),
     }
   }
 }

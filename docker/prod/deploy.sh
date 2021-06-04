@@ -1,24 +1,9 @@
 #!/bin/sh
-set -e
 #git checkout main
 
 # Creating the new tag
 new_tag="$1"
 third_semver=$(echo $new_tag | cut -d "." -f 3)
-
-# Setting the version on the backend
-pushd ../../
-echo "pub const VERSION: &str = \"$new_tag\";" > "crates/utils/src/version.rs"
-git add "crates/utils/src/version.rs"
-popd
-
-# Changing various references to the Lemmy version
-sed -i "s/dessalines\/lemmy:.*/dessalines\/lemmy:$new_tag/" ../dev/docker-compose.yml
-sed -i "s/dessalines\/lemmy-ui:.*/dessalines\/lemmy-ui:$new_tag/" ../dev/docker-compose.yml
-sed -i "s/dessalines\/lemmy:.*/dessalines\/lemmy:$new_tag/" ../federation/docker-compose.yml
-sed -i "s/dessalines\/lemmy-ui:.*/dessalines\/lemmy-ui:$new_tag/" ../federation/docker-compose.yml
-git add ../dev/docker-compose.yml
-git add ../federation/docker-compose.yml
 
 # The ansible and docker installs should only update for non release-candidates
 # IE, when the third semver is a number, not '2-rc'

@@ -2,11 +2,11 @@ use crate::{
   check_is_apub_id_valid,
   extensions::{context::lemmy_context, page_extension::PageExtension},
   fetcher::person::get_or_fetch_and_upsert_person,
+  get_community_from_to_or_cc,
   objects::{
     check_object_domain,
     check_object_for_community_or_site_ban,
     create_tombstone,
-    get_community_from_to_or_cc,
     get_object_from_apub,
     get_source_markdown_value,
     set_content_and_source,
@@ -143,12 +143,13 @@ impl FromApubToForm<PageExt> for PostForm {
     request_counter: &mut i32,
     mod_action_allowed: bool,
   ) -> Result<PostForm, LemmyError> {
+    let community = get_community_from_to_or_cc(page, context, request_counter).await?;
     let ap_id = if mod_action_allowed {
       let id = page.id_unchecked().context(location_info!())?;
-      check_is_apub_id_valid(id)?;
+      check_is_apub_id_valid(id, community.local)?;
       id.to_owned().into()
     } else {
-      check_object_domain(page, expected_domain)?
+      check_object_domain(page, expected_domain, community.local)?
     };
     let ext = &page.ext_one;
     let creator_actor_id = page
@@ -161,8 +162,6 @@ impl FromApubToForm<PageExt> for PostForm {
 
     let creator =
       get_or_fetch_and_upsert_person(creator_actor_id, context, request_counter).await?;
-
-    let community = get_community_from_to_or_cc(page, context, request_counter).await?;
 
     let thumbnail_url: Option<Url> = match &page.inner.image() {
       Some(any_image) => Image::from_any_base(
@@ -231,8 +230,8 @@ impl FromApubToForm<PageExt> for PostForm {
         .as_ref()
         .map(|u| u.to_owned().naive_local()),
       deleted: None,
-      nsfw: ext.sensitive.unwrap_or(false),
-      stickied: ext.stickied.or(Some(false)),
+      nsfw: ext.sensitive,
+      stickied: ext.stickied,
       embed_title: iframely_title,
       embed_description: iframely_description,
       embed_html: iframely_html,

@@ -1,7 +1,12 @@
 use crate::PerformCrud;
 use actix_web::web::Data;
 use lemmy_api_common::{blocking, community::*, get_local_user_view_from_jwt_opt};
-use lemmy_db_queries::{source::community::Community_, ListingType, SortType};
+use lemmy_db_queries::{
+  from_opt_str_to_opt_enum,
+  source::community::Community_,
+  ListingType,
+  SortType,
+};
 use lemmy_db_schema::source::community::*;
 use lemmy_db_views_actor::{
   community_moderator_view::CommunityModeratorView,
@@ -9,7 +14,6 @@ use lemmy_db_views_actor::{
 };
 use lemmy_utils::{ApiError, ConnectionId, LemmyError};
 use lemmy_websocket::{messages::GetCommunityUsersOnline, LemmyContext};
-use std::str::FromStr;
 
 #[async_trait::async_trait(?Send)]
 impl PerformCrud for GetCommunity {
@@ -28,35 +32,26 @@ impl PerformCrud for GetCommunity {
       Some(id) => id,
       None => {
         let name = data.name.to_owned().unwrap_or_else(|| "main".to_string());
-        match blocking(context.pool(), move |conn| {
+        blocking(context.pool(), move |conn| {
           Community::read_from_name(conn, &name)
         })
         .await?
-        {
-          Ok(community) => community,
-          Err(_e) => return Err(ApiError::err("couldnt_find_community").into()),
-        }
+        .map_err(|_| ApiError::err("couldnt_find_community"))?
         .id
       }
     };
 
-    let community_view = match blocking(context.pool(), move |conn| {
+    let community_view = blocking(context.pool(), move |conn| {
       CommunityView::read(conn, community_id, person_id)
     })
     .await?
-    {
-      Ok(community) => community,
-      Err(_e) => return Err(ApiError::err("couldnt_find_community").into()),
-    };
+    .map_err(|_| ApiError::err("couldnt_find_community"))?;
 
-    let moderators: Vec<CommunityModeratorView> = match blocking(context.pool(), move |conn| {
+    let moderators: Vec<CommunityModeratorView> = blocking(context.pool(), move |conn| {
       CommunityModeratorView::for_community(conn, community_id)
     })
     .await?
-    {
-      Ok(moderators) => moderators,
-      Err(_e) => return Err(ApiError::err("couldnt_find_community").into()),
-    };
+    .map_err(|_| ApiError::err("couldnt_find_community"))?;
 
     let online = context
       .chat_server()
@@ -95,15 +90,15 @@ impl PerformCrud for ListCommunities {
       None => false,
     };
 
-    let type_ = ListingType::from_str(&data.type_)?;
-    let sort = SortType::from_str(&data.sort)?;
+    let sort: Option<SortType> = from_opt_str_to_opt_enum(&data.sort);
+    let listing_type: Option<ListingType> = from_opt_str_to_opt_enum(&data.type_);
 
     let page = data.page;
     let limit = data.limit;
     let communities = blocking(context.pool(), move |conn| {
       CommunityQueryBuilder::create(conn)
-        .listing_type(&type_)
-        .sort(&sort)
+        .listing_type(listing_type)
+        .sort(sort)
         .show_nsfw(show_nsfw)
         .my_person_id(person_id)
         .page(page)

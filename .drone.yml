@@ -8,11 +8,12 @@ platform:
 
 steps:
 
-  - name: chown repo
-    image: ekidd/rust-musl-builder:1.50.0
+  - name: prepare repo
+    image: ekidd/rust-musl-builder:1.51.0
     user: root
     commands:
       - chown 1000:1000 . -R
+      - git fetch --tags
 
   - name: check formatting
     image: rustdocker/rust:nightly
@@ -20,13 +21,13 @@ steps:
       - /root/.cargo/bin/cargo fmt -- --check
 
   - name: cargo clippy
-    image: ekidd/rust-musl-builder:1.50.0
+    image: ekidd/rust-musl-builder:1.51.0
     commands:
       - cargo clippy --workspace --tests --all-targets --all-features -- -D warnings -D deprecated -D clippy::perf -D clippy::complexity -D clippy::dbg_macro
       - cargo clippy --workspace -- -D clippy::unwrap_used
 
   - name: cargo test
-    image: ekidd/rust-musl-builder:1.50.0
+    image: ekidd/rust-musl-builder:1.51.0
     environment:
       LEMMY_DATABASE_URL: postgres://lemmy:password@database:5432/lemmy
       LEMMY_CONFIG_LOCATION: ../../config/config.hjson
@@ -34,11 +35,11 @@ steps:
       RUST_TEST_THREADS: 1
     commands:
       - sudo apt-get update
-      - sudo apt-get -y install --no-install-recommends espeak postgresql-client
+      - sudo apt-get -y install --no-install-recommends postgresql-client
       - cargo test --workspace --no-fail-fast
 
   - name: cargo build
-    image: ekidd/rust-musl-builder:1.50.0
+    image: ekidd/rust-musl-builder:1.51.0
     commands:
       - cargo build
       - mv target/x86_64-unknown-linux-musl/debug/lemmy_server target/lemmy_server
@@ -55,7 +56,39 @@ steps:
       - yarn
       - yarn api-test
 
-  - name: make release build and push to docker hub
+  - name: publish dev docker image
+    image: plugins/docker
+    settings:
+      dockerfile: docker/prod/Dockerfile
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      repo: dessalines/lemmy
+      tags:
+        - dev-linux-amd64
+    when:
+      ref:
+        - refs/heads/main
+
+  - name: publish dev docker manifest
+    image: plugins/manifest
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      target: "dessalines/lemmy:dev"
+      template: "dessalines/lemmy:dev-OS-ARCH"
+      platforms:
+        - linux/amd64
+        - linux/arm64
+      ignore_missing: true
+    when:
+      ref:
+        - refs/heads/main
+
+  - name: publish release docker image
     image: plugins/docker
     settings:
       dockerfile: docker/prod/Dockerfile
@@ -68,9 +101,9 @@ steps:
       auto_tag_suffix: linux-amd64
     when:
       ref:
-      - refs/tags/*
+        - refs/tags/*
 
-  - name: push to docker manifest
+  - name: publish release docker manifest
     image: plugins/manifest
     settings: 
       username:
@@ -85,7 +118,7 @@ steps:
       ignore_missing: true
     when:
       ref:
-      - refs/tags/*
+        - refs/tags/*
 
 services:
   - name: database
@@ -104,8 +137,17 @@ platform:
 
 steps:
 
+  - name: prepare repo
+    image: rust:1.51-slim-buster
+    user: root
+    commands:
+      - chown 1000:1000 . -R
+      - apt update
+      - apt install --no-install-recommends --yes git
+      - git fetch --tags
+
   - name: cargo test
-    image: rust:1.50-slim-buster
+    image: rust:1.51-slim-buster
     environment:
       LEMMY_DATABASE_URL: postgres://lemmy:password@database:5432/lemmy
       LEMMY_CONFIG_LOCATION: ../../config/config.hjson
@@ -113,13 +155,13 @@ steps:
       RUST_TEST_THREADS: 1
     commands:
       - apt-get update
-      - apt-get -y install --no-install-recommends espeak postgresql-client libssl-dev pkg-config libpq-dev
+      - apt-get -y install --no-install-recommends postgresql-client libssl-dev pkg-config libpq-dev
       - cargo test --workspace --no-fail-fast
       - cargo build
 
   # Using Debian here because there seems to be no official Alpine-based Rust docker image for ARM.
   - name: cargo build
-    image: rust:1.50-slim-buster
+    image: rust:1.51-slim-buster
     commands:
       - apt-get update
       - apt-get -y install --no-install-recommends libssl-dev pkg-config libpq-dev
@@ -140,7 +182,39 @@ steps:
       - yarn
       - yarn api-test
 
-  - name: make release build and push to docker hub
+  - name: publish dev docker image
+    image: plugins/docker
+    settings:
+      dockerfile: docker/prod/Dockerfile.arm
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      repo: dessalines/lemmy
+      tags:
+        - dev-linux-arm64
+    when:
+      ref:
+        - refs/heads/main
+
+  - name: publish dev docker manifest
+    image: plugins/manifest
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      target: "dessalines/lemmy:dev"
+      template: "dessalines/lemmy:dev-OS-ARCH"
+      platforms:
+        - linux/amd64
+        - linux/arm64
+      ignore_missing: true
+    when:
+      ref:
+        - refs/heads/main
+
+  - name: publish release docker image
     image: plugins/docker
     settings:
       dockerfile: docker/prod/Dockerfile.arm
@@ -155,7 +229,7 @@ steps:
       ref:
         - refs/tags/*
 
-  - name: push to docker manifest
+  - name: publish release docker manifest
     image: plugins/manifest
     settings: 
       username:
@@ -170,7 +244,7 @@ steps:
       ignore_missing: true
     when:
       ref:
-      - refs/tags/*
+        - refs/tags/*
 
 services:
   - name: database

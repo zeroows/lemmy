@@ -25,6 +25,7 @@ use crate::{
     is_addressed_to_local_person,
     receive_for_community::{
       receive_add_for_community,
+      receive_block_user_for_community,
       receive_create_for_community,
       receive_delete_for_community,
       receive_dislike_for_community,
@@ -60,7 +61,7 @@ use lemmy_db_schema::source::{
 };
 use lemmy_utils::{location_info, LemmyError};
 use lemmy_websocket::LemmyContext;
-use log::debug;
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use strum_macros::EnumString;
@@ -114,13 +115,6 @@ pub async fn person_inbox(
   assert_activity_not_local(&activity)?;
   insert_activity(&activity_id, activity.clone(), false, true, context.pool()).await?;
 
-  debug!(
-    "Person {} received activity {:?} from {}",
-    person.name,
-    &activity.id_unchecked(),
-    &actor.actor_id()
-  );
-
   person_receive_message(
     activity.clone(),
     Some(person.clone()),
@@ -140,6 +134,15 @@ pub(crate) async fn person_receive_message(
   request_counter: &mut i32,
 ) -> Result<HttpResponse, LemmyError> {
   is_for_person_inbox(context, &activity).await?;
+
+  info!(
+    "User received activity {:?} from {}",
+    &activity
+      .id_unchecked()
+      .context(location_info!())?
+      .to_string(),
+    &actor.actor_id().to_string()
+  );
 
   let any_base = activity.clone().into_any_base()?;
   let kind = activity.kind().context(location_info!())?;
@@ -276,6 +279,7 @@ enum AnnouncableActivities {
   Remove,
   Undo,
   Add,
+  Block,
 }
 
 /// Takes an announce and passes the inner activity to the appropriate handler.
@@ -300,7 +304,7 @@ pub async fn receive_announce(
     .context(location_info!())?;
 
   let inner_id = inner_activity.id().context(location_info!())?.to_owned();
-  check_is_apub_id_valid(&inner_id)?;
+  check_is_apub_id_valid(&inner_id, false)?;
   if is_activity_already_known(context.pool(), &inner_id).await? {
     return Ok(());
   }
@@ -351,6 +355,10 @@ pub async fn receive_announce(
     }
     Some(Add) => {
       receive_add_for_community(context, inner_activity, Some(announce), request_counter).await
+    }
+    Some(Block) => {
+      receive_block_user_for_community(context, inner_activity, Some(announce), request_counter)
+        .await
     }
     _ => receive_unhandled_activity(inner_activity),
   }

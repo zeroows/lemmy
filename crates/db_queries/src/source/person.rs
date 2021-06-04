@@ -15,7 +15,7 @@ mod safe_type {
   type Columns = (
     id,
     name,
-    preferred_username,
+    display_name,
     avatar,
     banned,
     published,
@@ -29,6 +29,7 @@ mod safe_type {
     shared_inbox_url,
     matrix_user_id,
     admin,
+    bot_account,
   );
 
   impl ToSafe for Person {
@@ -37,7 +38,7 @@ mod safe_type {
       (
         id,
         name,
-        preferred_username,
+        display_name,
         avatar,
         banned,
         published,
@@ -51,6 +52,7 @@ mod safe_type {
         shared_inbox_url,
         matrix_user_id,
         admin,
+        bot_account,
       )
     }
   }
@@ -63,7 +65,7 @@ mod safe_type_alias_1 {
   type Columns = (
     id,
     name,
-    preferred_username,
+    display_name,
     avatar,
     banned,
     published,
@@ -77,6 +79,7 @@ mod safe_type_alias_1 {
     shared_inbox_url,
     matrix_user_id,
     admin,
+    bot_account,
   );
 
   impl ToSafe for PersonAlias1 {
@@ -85,7 +88,7 @@ mod safe_type_alias_1 {
       (
         id,
         name,
-        preferred_username,
+        display_name,
         avatar,
         banned,
         published,
@@ -99,6 +102,7 @@ mod safe_type_alias_1 {
         shared_inbox_url,
         matrix_user_id,
         admin,
+        bot_account,
       )
     }
   }
@@ -111,7 +115,7 @@ mod safe_type_alias_2 {
   type Columns = (
     id,
     name,
-    preferred_username,
+    display_name,
     avatar,
     banned,
     published,
@@ -125,6 +129,7 @@ mod safe_type_alias_2 {
     shared_inbox_url,
     matrix_user_id,
     admin,
+    bot_account,
   );
 
   impl ToSafe for PersonAlias2 {
@@ -133,7 +138,7 @@ mod safe_type_alias_2 {
       (
         id,
         name,
-        preferred_username,
+        display_name,
         avatar,
         banned,
         published,
@@ -147,6 +152,7 @@ mod safe_type_alias_2 {
         shared_inbox_url,
         matrix_user_id,
         admin,
+        bot_account,
       )
     }
   }
@@ -231,12 +237,15 @@ impl Person_ for Person {
 
     // Set the local user info to none
     diesel::update(local_user::table.filter(local_user::person_id.eq(person_id)))
-      .set((local_user::email.eq::<Option<String>>(None),))
+      .set((
+        local_user::email.eq::<Option<String>>(None),
+        local_user::validator_time.eq(naive_now()),
+      ))
       .execute(conn)?;
 
     diesel::update(person.find(person_id))
       .set((
-        preferred_username.eq::<Option<String>>(None),
+        display_name.eq::<Option<String>>(None),
         bio.eq::<Option<String>>(None),
         matrix_user_id.eq::<Option<String>>(None),
         deleted.eq(true),
@@ -264,7 +273,7 @@ mod tests {
     let expected_person = Person {
       id: inserted_person.id,
       name: "holly".into(),
-      preferred_username: None,
+      display_name: None,
       avatar: None,
       banner: None,
       banned: false,
@@ -274,6 +283,7 @@ mod tests {
       actor_id: inserted_person.actor_id.to_owned(),
       bio: None,
       local: true,
+      bot_account: false,
       admin: false,
       private_key: None,
       public_key: None,

@@ -1,6 +1,12 @@
 use crate::PerformCrud;
 use actix_web::web::Data;
-use lemmy_api_common::{blocking, check_community_ban, get_local_user_view_from_jwt, post::*};
+use lemmy_api_common::{
+  blocking,
+  check_community_ban,
+  get_local_user_view_from_jwt,
+  mark_post_as_read,
+  post::*,
+};
 use lemmy_apub::{generate_apub_endpoint, ApubLikeableType, ApubObjectType, EndpointType};
 use lemmy_db_queries::{source::post::Post_, Crud, Likeable};
 use lemmy_db_schema::source::post::*;
@@ -69,24 +75,23 @@ impl PerformCrud for CreatePost {
       };
 
     let inserted_post_id = inserted_post.id;
-    let updated_post = match blocking(context.pool(), move |conn| -> Result<Post, LemmyError> {
+    let updated_post = blocking(context.pool(), move |conn| -> Result<Post, LemmyError> {
       let apub_id = generate_apub_endpoint(EndpointType::Post, &inserted_post_id.to_string())?;
       Ok(Post::update_ap_id(conn, inserted_post_id, apub_id)?)
     })
     .await?
-    {
-      Ok(post) => post,
-      Err(_e) => return Err(ApiError::err("couldnt_create_post").into()),
-    };
+    .map_err(|_| ApiError::err("couldnt_create_post"))?;
 
     updated_post
       .send_create(&local_user_view.person, context)
       .await?;
 
     // They like their own post by default
+    let person_id = local_user_view.person.id;
+    let post_id = inserted_post.id;
     let like_form = PostLikeForm {
-      post_id: inserted_post.id,
-      person_id: local_user_view.person.id,
+      post_id,
+      person_id,
       score: 1,
     };
 
@@ -95,20 +100,20 @@ impl PerformCrud for CreatePost {
       return Err(ApiError::err("couldnt_like_post").into());
     }
 
+    // Mark the post as read
+    mark_post_as_read(person_id, post_id, context.pool()).await?;
+
     updated_post
       .send_like(&local_user_view.person, context)
       .await?;
 
     // Refetch the view
     let inserted_post_id = inserted_post.id;
-    let post_view = match blocking(context.pool(), move |conn| {
+    let post_view = blocking(context.pool(), move |conn| {
       PostView::read(conn, inserted_post_id, Some(local_user_view.person.id))
     })
     .await?
-    {
-      Ok(post) => post,
-      Err(_e) => return Err(ApiError::err("couldnt_find_post").into()),
-    };
+    .map_err(|_| ApiError::err("couldnt_find_post"))?;
 
     let res = PostResponse { post_view };
 
